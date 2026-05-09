@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}学生首页 - CALS{% endblock %}
+
+{% block content %}
+<div class="dashboard">
+    <section class="hero">
+        <div>
+            <h1 class="hero-title">你好，{{ session.get('display_name') or session['user'] }} 👋</h1>
+            <p class="hero-subtitle">这是你今天的学习概览，继续保持节奏。</p>
+        </div>
+        <div class="hero-badge">C 语言题库</div>
+    </section>
+
+    <section class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon">📘</div>
+            <div>
+                <div class="stat-label">已刷题数</div>
+                <div class="stat-value" id="metric-solved">-</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">🎯</div>
+            <div>
+                <div class="stat-label">正确率</div>
+                <div class="stat-value" id="metric-accuracy">-%</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">🔥</div>
+            <div>
+                <div class="stat-label">连续打卡</div>
+                <div class="stat-value" id="metric-streak">-天</div>
+            </div>
+        </div>
+    </section>
+
+    <div class="admin-layout admin-dashboard">
+        <div class="table-card">
+            <div class="table-header">
+                <h2>近 14 天刷题趋势</h2>
+            </div>
+            <canvas id="chart-trend" height="120"></canvas>
+        </div>
+        <div class="table-card">
+            <div class="table-header">
+                <h2>题型分布</h2>
+            </div>
+            <canvas id="chart-type" height="120"></canvas>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+    const solvedEl=document.getElementById("metric-solved");
+    const accEl=document.getElementById("metric-accuracy");
+    const streakEl=document.getElementById("metric-streak");
+
+    const trendCtx=document.getElementById("chart-trend");
+    const typeCtx=document.getElementById("chart-type");
+    let trendChart=null;
+    let typeChart=null;
+
+    const buildCharts=(data)=>{
+        if(trendChart){trendChart.destroy();}
+        if(typeChart){typeChart.destroy();}
+        if(trendCtx){
+            trendChart=new Chart(trendCtx,{
+                type:"line",
+                data:{labels:data.trend.labels,datasets:[{label:"刷题数",data:data.trend.values,borderColor:"#0ea5e9",backgroundColor:"rgba(14,165,233,0.2)",fill:true,tension:0.35}]},
+                options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{precision:0}}}}
+            });
+        }
+        if(typeCtx){
+            typeChart=new Chart(typeCtx,{
+                type:"doughnut",
+                data:{labels:data.type_dist.labels,datasets:[{data:data.type_dist.values,backgroundColor:["#60a5fa","#34d399","#fbbf24","#f472b6"]}]},
+                options:{responsive:true,plugins:{legend:{position:"bottom"}}}
+            });
+        }
+    };
+
+    const fetchStats=async()=>{
+        const resp=await fetch("{{ url_for("student_bp.student_api_stats") }}");
+        if(!resp.ok){return;}
+        const payload=await resp.json();
+        if(!payload || !payload.ok){return;}
+        const data=payload.data;
+        if(solvedEl){solvedEl.textContent=String(data.solved_count||0);}
+        if(accEl){accEl.textContent=`${data.accuracy_percent||0}%`;}
+        if(streakEl){streakEl.textContent=`${data.streak_days||0}天`;}
+        buildCharts(data);
+    };
+
+    fetchStats();
+</script>
+{% endblock %}

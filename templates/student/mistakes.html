@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+{% block title %}错题本 - CALS{% endblock %}
+
+{% block content %}
+<div class="question-board">
+    <div class="mistakes-header">
+        <h1>错题回顾</h1>
+        <div class="header-right">
+            <span class="hint-text" style="color: #666; font-size: 13px; margin-right: 12px;"><i style="font-style: normal;">↓</i> 最新错题置顶</span>
+            <span class="count-badge">共 {{ total_count }} 题，当前第 {{ page }} / {{ total_pages }} 页</span>
+        </div>
+    </div>
+
+    {% if all_tags %}
+        <div class="filter-bar">
+            <a class="filter-chip {% if not tag_filter %}active{% endif %}" href="{{ url_for("student_bp.student_mistakes") }}">全部</a>
+            {% for t in all_tags %}
+                <a class="filter-chip {% if tag_filter == t %}active{% endif %}" href="{{ url_for("student_bp.student_mistakes", tag=t) }}">{{ t }}</a>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    {% if mistakes %}
+        <div class="question-grid" id="mistakes-grid">
+            {% for m in mistakes %}
+                {% set excerpt = (m.question.title|striptags)|trim %}
+                <article class="question-grid-card question-card is-mistake" data-card-item data-href="{{ url_for("student_bp.student_question_view", q_id=m.question.id) }}">
+                    <div class="question-card-top">
+                        <div class="question-card-main">
+                            <div class="question-card-meta">
+                                <span class="badge">
+                                    {% if m.question.type == 'single' %}单选{% elif m.question.type == 'multi' %}多选{% elif m.question.type == 'text' %}填空{% else %}编程{% endif %}
+                                </span>
+                                <span class="badge ghost">{{ m.question.code }}</span>
+                                <span class="badge ghost">{{ m.question.level_star }}★</span>
+                            </div>
+                            <a class="question-card-link" href="{{ url_for("student_bp.student_question_view", q_id=m.question.id) }}">
+                                <div class="question-card-title">{{ excerpt[:30] }}{% if excerpt|length > 30 %}...{% endif %}</div>
+                            </a>
+                        </div>
+                        <span class="meta-time">{{ m.timestamp }}</span>
+                    </div>
+                    <div class="question-card-excerpt">{{ excerpt[:30] }}{% if excerpt|length > 30 %}...{% endif %}</div>
+                    <div class="question-card-tags">
+                        {% for tag in (m.question.tags_ui or m.question.tags)[:4] %}
+                            <span class="tag">{{ tag }}</span>
+                        {% endfor %}
+                    </div>
+                    <div class="answer-grid">
+                        <div class="answer-box bad">
+                            <div class="answer-label">你的答案</div>
+                            <div class="answer-value">
+                                {% if m.user_answer is sequence and m.user_answer is not string %}
+                                    {{ m.user_answer|join(", ") }}
+                                {% else %}
+                                    {{ m.user_answer }}
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="answer-box good">
+                            <div class="answer-label">正确答案</div>
+                            <div class="answer-value">
+                                {% if m.question.answer is sequence and m.question.answer is not string %}
+                                    {{ m.question.answer|join(", ") }}
+                                {% else %}
+                                    {{ m.question.answer }}
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% if m.question.explain %}
+                        <div class="mistake-explain">
+                            <div class="answer-label">解析</div>
+                            <div class="answer-value">{{ m.question.explain|safe }}</div>
+                        </div>
+                    {% endif %}
+                    <div class="question-card-actions">
+                        <a class="btn btn-ghost btn-sm" href="{{ url_for("student_bp.student_practice", redo_id=m.question.id) }}">重做</a>
+                        <form method="post" class="inline-form" action="{{ url_for("student_bp.student_mistake_remove", tag=tag_filter) }}">
+                            <input type="hidden" name="mistake_id" value="{{ m.id }}">
+                            <button class="btn btn-danger btn-sm" type="submit">移除</button>
+                        </form>
+                    </div>
+                </article>
+            {% endfor %}
+        </div>
+        <div class="load-more-wrap">
+            <div id="mistakes-load-trigger" class="load-more-trigger" aria-hidden="true"></div>
+        </div>
+        <div class="pager">
+            <div class="pager-left">
+                {% if pager_prev_url %}
+                    <a class="btn btn-ghost btn-sm" href="{{ pager_prev_url }}">上一页</a>
+                {% endif %}
+            </div>
+            <div class="pager-mid">
+                {% set window = 5 %}
+                {% set start_page = 1 %}
+                {% if total_pages > window %}
+                    {% if page <= 3 %}
+                        {% set start_page = 1 %}
+                    {% elif page >= total_pages - 2 %}
+                        {% set start_page = total_pages - window + 1 %}
+                    {% else %}
+                        {% set start_page = page - 2 %}
+                    {% endif %}
+                {% endif %}
+                {% set end_page = start_page + window - 1 %}
+                {% if end_page > total_pages %}
+                    {% set end_page = total_pages %}
+                {% endif %}
+                {% for p in range(start_page, end_page + 1) %}
+                    <a class="btn btn-ghost btn-sm {% if p == page %}btn-active{% endif %}" href="{{ url_for('student_bp.student_mistakes', page=p, tag=tag_filter or None) }}">{{ p }}</a>
+                {% endfor %}
+            </div>
+            <div class="pager-right">
+                {% if pager_next_url %}
+                    <a class="btn btn-ghost btn-sm" href="{{ pager_next_url }}">下一页</a>
+                {% endif %}
+            </div>
+        </div>
+    {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">🏆</div>
+            <div class="empty-title">太棒了！</div>
+            <div class="empty-desc">你目前没有错题记录，继续保持！</div>
+            <a href="{{ url_for("student_bp.student_practice") }}" class="link primary">去刷题</a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+(function(){
+    const grid = document.getElementById('mistakes-grid');
+    if (!grid) return;
+    const cards = Array.from(grid.querySelectorAll('[data-card-item]'));
+    const batchSize = 20;
+    let visible = 0;
+
+    function showMore() {
+        const next = Math.min(visible + batchSize, cards.length);
+        for (let i = visible; i < next; i++) cards[i].hidden = false;
+        visible = next;
+    }
+
+    cards.forEach((card, index) => {
+        if (index >= batchSize) card.hidden = true;
+    });
+    visible = Math.min(batchSize, cards.length);
+
+    const trigger = document.getElementById('mistakes-load-trigger');
+    if (trigger && 'IntersectionObserver' in window) {
+        const io = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting && visible < cards.length) {
+                    showMore();
+                }
+            });
+        }, { rootMargin: '200px 0px' });
+        io.observe(trigger);
+    }
+
+    grid.addEventListener('click', (e) => {
+        const card = e.target.closest('.question-card');
+        if (!card) return;
+        if (e.target.closest('a, button, form, input, textarea, select, label')) return;
+        const href = card.dataset.href;
+        if (href) window.location.href = href;
+    });
+})();
+</script>
+{% endblock %}

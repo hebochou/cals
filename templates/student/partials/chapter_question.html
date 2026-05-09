@@ -1,0 +1,117 @@
+<div class="slider-item inactive">
+    <!-- Question Card -->
+    <div class="practice-card-wrapper">
+        <div class="practice-card">
+            <!-- Status Overlay -->
+            <div class="status-overlay"></div>
+
+            <div class="practice-header">
+                <div class="meta">
+                    <span class="badge">
+                        {% if q.type == 'single' %}单选{% elif q.type == 'multi' %}多选{% elif q.type == 'text' %}填空{% else %}编程{% endif %}
+                    </span>
+                    <span class="meta-id">题号 {{ q.code_display }}</span>
+                    {% if q.level_star %}
+                        <span class="stars small" style="margin-left: 10px;">
+                            {% for i in range(1, 6) %}
+                                <span class="star {% if i <= q.level_star %}on{% endif %}">★</span>
+                            {% endfor %}
+                        </span>
+                    {% endif %}
+                    <span class="favorite-star" data-qid="{{ q.id }}" style="cursor:pointer; color: {% if q.id in favorited_ids %}#f59e0b{% else %}#cbd5e1{% endif %}; text-shadow: 0 0 1px #94a3b8; font-size: 18px; margin-left: auto;">★</span>
+                </div>
+                <div class="tag-list">
+                    {% for tag in q.tags_ui or q.tags %}
+                        <span class="tag">{{ tag }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="practice-body">
+                <div class="question-title">{{ q.title|safe }}</div>
+
+                <form method="post" class="practice-form" action="javascript:void(0);">
+                    <input type="hidden" name="q_id" value="{{ q.id }}">
+                    <input type="hidden" name="mode" value="{{ mode or 'chapter' }}">
+                    
+                    {% if q.type == 'single' %}
+                        <div class="option-list">
+                            {% for opt in q.options %}
+                                <label class="option-item">
+                                    <input type="radio" name="answer" value="{{ opt.key }}" class="option-input" required>
+                                    <span class="option-text">{{ opt.key }}. {{ opt.text }}</span>
+                                </label>
+                            {% endfor %}
+                        </div>
+                    {% elif q.type == 'multi' %}
+                        <div class="option-list">
+                            {% for opt in q.options %}
+                                <label class="option-item">
+                                    <input type="checkbox" name="answer" value="{{ opt.key }}" class="option-input">
+                                    <span class="option-text">{{ opt.key }}. {{ opt.text }}</span>
+                                </label>
+                            {% endfor %}
+                        </div>
+                    {% elif q.type == 'text' %}
+                        <div class="field">
+                            <input type="text" name="answer" class="input" placeholder="请输入你的答案" required autocomplete="off">
+                        </div>
+                    {% elif q.type == 'coding' %}
+                        <textarea name="answer" class="answer-text" placeholder="请输入你的代码"></textarea>
+                        
+                        <div class="compile-io-area" style="margin-top: 15px; border-radius: 6px; padding: 12px; font-size: 13px; font-family: monospace; background: #f8fafc; color: #334155; border: 1px solid #e2e8f0;">
+                            {% set meta = q.answer_meta if q.answer_meta is mapping else {} %}
+                            {% set sample_input = meta.get('sample_input', '') %}
+                            {% set sample_output = meta.get('sample_output', '') %}
+                            
+                            {% if sample_input %}
+                                <div style="color: #475569; font-weight: 600;">标准输入 (stdin):</div>
+                                <div style="background: #e2e8f0; padding: 8px; border-radius: 4px; margin-top: 4px; margin-bottom: 8px; white-space: pre-wrap; word-break: break-all;">{{ sample_input }}</div>
+                            {% endif %}
+                            
+                            <div style="color: #475569; font-weight: 600;">预期输出:</div>
+                            <div style="background: #e2e8f0; padding: 8px; border-radius: 4px; margin-top: 4px; white-space: pre-wrap; word-break: break-all;">{% if sample_output %}{{ sample_output }}{% else %}<i>(无预期输出)</i>{% endif %}</div>
+                            
+                            <!-- 编译后由JS填充这里 -->
+                            <div class="compile-result-area" style="display: none; margin-top: 12px; padding-top: 12px; border-top: 1px dashed #cbd5e1;"></div>
+                        </div>
+                    {% endif %}
+
+                    {% if can_view_plain_answers %}
+                        <div class="result-panel neutral" style="margin-top: 15px;">
+                            <div class="result-title" style="color: #f59e0b;">测试模式：本题答案 (仅管理员可见)</div>
+                            <div class="result-row" style="margin-top: 8px;">
+                                <div class="result-value" style="font-family: monospace; word-break: break-all; white-space: pre-wrap; line-height: 1.5;">{% if q.type in ['single', 'multi', 'text'] %}{% if q.answer is sequence and q.answer is not string %}{{ q.answer|join(", ") }}{% else %}{{ q.answer }}{% endif %}{% elif q.type == 'coding' %}{{ q.answer }}{% endif %}</div>
+                            </div>
+                        </div>
+                    {% endif %}
+                    
+                    <input type="hidden" name="q_type" value="{{ q.type }}">
+
+                    <div class="practice-footer" style="display: flex; gap: 10px;">
+                        {% if q.type == 'coding' %}
+                            <button type="button" class="btn btn-ghost btn-compile" style="flex: 1; border: 1px solid var(--primary); color: var(--primary);">编译</button>
+                        {% endif %}
+                        <button type="submit" class="btn btn-primary btn-submit" style="flex: 2;">提交答案</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Explanation Panel (Right side, initially collapsed) -->
+    <div class="explanation-wrapper">
+        <div class="explanation-card">
+            <div class="explanation-header">
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                错题解析
+            </div>
+            <div class="explanation-body">
+                <div class="loader-spinner"></div>
+            </div>
+            <div class="explanation-footer">
+                <button type="button" class="btn btn-primary btn-redo" data-qid="{{ q.id }}">重做</button>
+            </div>
+        </div>
+    </div>
+</div>

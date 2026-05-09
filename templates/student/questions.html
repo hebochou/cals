@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+{% block title %}题库 - CALS{% endblock %}
+
+{% block content %}
+<div class="question-board">
+    <div class="mistakes-header">
+        <h1>题库</h1>
+        <span class="count-badge">共 {{ total_count }} 题，当前第 {{ page }} / {{ total_pages }} 页</span>
+    </div>
+
+    <form method="get" class="filter-bar">
+        <input class="input" name="code" placeholder="题号" value="{{ code_filter or '' }}">
+        <select class="input" name="type">
+            <option value="">题型</option>
+            <option value="single" {% if type_filter == 'single' %}selected{% endif %}>单选</option>
+            <option value="multi" {% if type_filter == 'multi' %}selected{% endif %}>多选</option>
+            <option value="text" {% if type_filter == 'text' %}selected{% endif %}>填空</option>
+            <option value="coding" {% if type_filter == 'coding' %}selected{% endif %}>编程</option>
+        </select>
+        <select class="input" name="difficulty">
+            <option value="">难度</option>
+            {% for d in range(1, 6) %}
+                <option value="{{ d }}" {% if difficulty_filter == d|string %}selected{% endif %}>{{ d }} 星</option>
+            {% endfor %}
+        </select>
+        <select class="input" name="tags" multiple size="1">
+            {% for t in all_tags or [] %}
+                <option value="{{ t }}" {% if tags_filter and t in tags_filter %}selected{% endif %}>{{ t }}</option>
+            {% endfor %}
+        </select>
+        <button class="btn btn-primary btn-sm" type="submit">筛选</button>
+        <a class="btn btn-ghost btn-sm" href="{{ url_for("student_bp.student_questions") }}">重置</a>
+    </form>
+
+    {% if questions %}
+        <div class="question-grid" id="question-bank-grid">
+            {% for q in questions %}
+                {% set excerpt = (q.title|striptags)|trim %}
+                <article class="question-grid-card question-card{% if q.id in favorite_ids %} is-favorite{% endif %}{% if q.id in mistake_ids %} is-mistake{% endif %}" data-card-item data-href="{{ url_for("student_bp.student_question_view", q_id=q.id) }}{% if qs %}?{{ qs }}{% endif %}">
+                    <div class="question-card-top">
+                        <div class="question-card-main">
+                            <div class="question-card-meta">
+                                <span class="badge">
+                                    {% if q.type == 'single' %}单选{% elif q.type == 'multi' %}多选{% elif q.type == 'text' %}填空{% else %}编程{% endif %}
+                                </span>
+                                <span class="badge ghost">{{ q.code_display }}</span>
+                                <span class="badge ghost">{{ q.level_star }}★</span>
+                            </div>
+                            <a class="question-card-link" href="{{ url_for("student_bp.student_question_view", q_id=q.id) }}{% if qs %}?{{ qs }}{% endif %}">
+                                <div class="question-card-title">{{ excerpt[:30] }}{% if excerpt|length > 30 %}...{% endif %}</div>
+                            </a>
+                        </div>
+                    </div>
+                    <div class="question-card-excerpt">{{ excerpt[:30] }}{% if excerpt|length > 30 %}...{% endif %}</div>
+                    <div class="question-card-footer">
+                        <div class="question-card-tags">
+                            {% for tag in (q.tags_ui or q.tags)[:4] %}
+                                <span class="tag">{{ tag }}</span>
+                            {% endfor %}
+                        </div>
+                        <div class="question-card-summary">
+                            <span class="question-card-hint">{{ q.type_cn or q.type }}</span>
+                            <div class="question-card-menu">
+                                <a class="btn btn-ghost btn-sm" href="{{ url_for("student_bp.student_question_view", q_id=q.id) }}{% if qs %}?{{ qs }}{% endif %}">查看</a>
+                                <button type="button" class="icon-btn favorite-toggle {% if q.id in favorite_ids %}is-active{% endif %}" data-qid="{{ q.id }}" title="收藏/取消收藏">{% if q.id in favorite_ids %}★{% else %}☆{% endif %}</button>
+                            </div>
+                        </div>
+                    </div>
+                </article>
+            {% endfor %}
+        </div>
+        <div class="load-more-wrap">
+            <div id="questions-load-trigger" class="load-more-trigger" aria-hidden="true"></div>
+        </div>
+        <div class="pager">
+            <div class="pager-left">
+                {% if pager_prev_url %}
+                    <a class="btn btn-ghost btn-sm" href="{{ pager_prev_url }}">上一页</a>
+                {% endif %}
+            </div>
+            <div class="pager-mid">
+                {% set window = 5 %}
+                {% set start_page = 1 %}
+                {% if total_pages > window %}
+                    {% if page <= 3 %}
+                        {% set start_page = 1 %}
+                    {% elif page >= total_pages - 2 %}
+                        {% set start_page = total_pages - window + 1 %}
+                    {% else %}
+                        {% set start_page = page - 2 %}
+                    {% endif %}
+                {% endif %}
+                {% set end_page = start_page + window - 1 %}
+                {% if end_page > total_pages %}
+                    {% set end_page = total_pages %}
+                {% endif %}
+                {% for p in range(start_page, end_page + 1) %}
+                    <a class="btn btn-ghost btn-sm {% if p == page %}btn-active{% endif %}" href="{{ url_for('student_bp.student_questions', page=p, code=code_filter or None, type=type_filter or None, difficulty=difficulty_filter or None, tags=tags_filter) }}">{{ p }}</a>
+                {% endfor %}
+            </div>
+            <div class="pager-right">
+                {% if pager_next_url %}
+                    <a class="btn btn-ghost btn-sm" href="{{ pager_next_url }}">下一页</a>
+                {% endif %}
+            </div>
+        </div>
+    {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">📚</div>
+            <div class="empty-title">暂无符合条件的题目</div>
+            <div class="empty-desc">请调整筛选条件后重试</div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+(function(){
+    const grid = document.getElementById('question-bank-grid');
+    if (!grid) return;
+    const cards = Array.from(grid.querySelectorAll('[data-card-item]'));
+    const batchSize = 20;
+    let visible = 0;
+
+    function showMore() {
+        const next = Math.min(visible + batchSize, cards.length);
+        for (let i = visible; i < next; i++) cards[i].hidden = false;
+        visible = next;
+    }
+
+    cards.forEach((card, index) => {
+        if (index >= batchSize) card.hidden = true;
+    });
+    visible = Math.min(batchSize, cards.length);
+
+    const trigger = document.getElementById('questions-load-trigger');
+    if (trigger && 'IntersectionObserver' in window) {
+        const io = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting && visible < cards.length) {
+                    showMore();
+                }
+            });
+        }, { rootMargin: '200px 0px' });
+        io.observe(trigger);
+    }
+
+    grid.addEventListener('click', async (e) => {
+        const btn = e.target.closest('.favorite-toggle');
+        if (btn) {
+            e.preventDefault();
+            const fd = new FormData();
+            fd.append('q_id', btn.dataset.qid);
+            const res = await fetch('{{ url_for("student_bp.student_toggle_favorite") }}', { method: 'POST', body: fd });
+            const data = await res.json();
+            if (data.ok) {
+                btn.textContent = data.favorited ? '★' : '☆';
+                btn.classList.toggle('is-active', !!data.favorited);
+                btn.closest('.question-card')?.classList.toggle('is-favorite', !!data.favorited);
+            }
+            return;
+        }
+        const card = e.target.closest('.question-card');
+        if (!card) return;
+        if (e.target.closest('a, button, form, input, textarea, select, label')) return;
+        const href = card.dataset.href;
+        if (href) window.location.href = href;
+    });
+})();
+</script>
+{% endblock %}

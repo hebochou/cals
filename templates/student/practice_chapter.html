@@ -1,0 +1,695 @@
+{% extends "base.html" %}
+{% block title %}按章节练习 - CALS{% endblock %}
+
+{% block head %}
+<style>
+/* Ensure main container takes full width to allow smooth horizontal scrolling */
+html, body { overflow: hidden !important; }
+main.container { width: 100%; max-width: 100%; margin: 0; padding: 0; overflow: hidden; }
+
+.chapter-practice-container {
+    width: 100%;
+    height: calc(100vh - 80px); /* Adjust based on header */
+    background: var(--bg);
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+}
+
+/* Track for horizontal scrolling */
+.slider-track {
+    display: flex;
+    align-items: center;
+    height: 100%;
+    position: absolute;
+    left: 0;
+    transform: translate3d(0, 0, 0); /* Initial, managed by JS */
+    transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+    will-change: transform;
+}
+
+/* Individual item wrapper */
+.slider-item {
+    display: flex;
+    align-items: center;
+    margin-right: 40px; /* Spacing between cards */
+    transition: opacity 0.3s ease;
+    flex-shrink: 0;
+    /* Performance optimizations for long history list */
+    content-visibility: auto;
+    contain: layout style paint;
+}
+
+/* Make non-active items slightly faded and unclickable */
+.slider-item.inactive {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+.slider-item.inactive .practice-card {
+    box-shadow: none;
+}
+
+/* The actual question card */
+.practice-card-wrapper {
+    width: 600px;
+    height: calc(100vh - 120px);
+    max-height: 800px;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Explanation box */
+.explanation-wrapper {
+    width: 0;
+    overflow: hidden;
+    transition: width 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
+    display: flex;
+    align-items: stretch;
+}
+.explanation-wrapper.open {
+    width: 300px; /* 280px + 20px margin */
+    margin-left: 20px;
+}
+.explanation-card {
+    width: 280px;
+    background: #fff;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 120px);
+    max-height: 800px;
+}
+.explanation-header {
+    padding: 15px 20px;
+    border-bottom: 1px solid var(--border);
+    font-weight: 700;
+    color: #ef4444;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.explanation-body {
+    padding: 20px;
+    flex: 1;
+    overflow-y: auto;
+    font-size: 14px;
+    color: var(--text);
+}
+.explanation-footer {
+    padding: 15px;
+    border-top: 1px solid var(--border);
+}
+.explanation-footer .btn { width: 100%; height: 44px; }
+
+/* Status Overlays */
+.status-overlay {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    padding: 12px;
+    text-align: center;
+    font-weight: 700;
+    color: #fff;
+    z-index: 10;
+    border-radius: 12px 12px 0 0;
+    transform: translateY(-100%);
+    transition: transform 0.3s ease;
+}
+.status-overlay.show { transform: translateY(0); }
+.status-overlay.correct { background: #10b981; }
+.status-overlay.wrong { background: #ef4444; }
+
+.practice-card { position: relative; overflow: hidden; height: 100%; margin: 0; display: flex; flex-direction: column; background: #fff; border-radius: 12px; box-shadow: var(--shadow); border: 1px solid var(--border); }
+.practice-body { flex: 1; overflow-y: auto; display: flex; flex-direction: column; padding: 24px; }
+.practice-form { flex: 1; display: flex; flex-direction: column; }
+.practice-footer { margin-top: auto; padding-top: 20px; border-top: 1px solid var(--border); }
+.practice-header { padding: 20px 24px; border-bottom: 1px solid var(--border); }
+.meta { display: flex; align-items: center; margin-bottom: 10px; }
+.tag-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.question-title { font-size: 16px; line-height: 1.6; color: var(--text); margin-bottom: 24px; }
+
+.practice-card.mode-chapter .practice-header {
+    background-color: transparent;
+}
+
+/* Loader for explanation */
+.loader-spinner {
+    border: 3px solid #f3f3f3;
+    border-top: 3px solid #3498db;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    animation: spin 1s linear infinite;
+    margin: 20px auto;
+}
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+/* Fix code input size */
+.answer-text { flex: 1; min-height: 150px; }
+
+/* Recommend panel floating for slider layout */
+.recommend-panel-floating {
+    position: absolute;
+    left: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 320px;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border);
+    padding: 20px;
+    z-index: 10;
+    max-height: calc(100vh - 120px);
+    overflow-y: auto;
+}
+
+/* Gradient mask for previous questions */
+.left-mask-overlay {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: calc(50% - 340px);
+    background: linear-gradient(to right, var(--bg) 0%, var(--bg) calc(100% - 300px), transparent 100%);
+    z-index: 5;
+    pointer-events: none;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="chapter-practice-container" id="practice-container">
+    {% if mode == 'recommend' and recommend_meta and recommend_meta.ready %}
+        <div class="left-mask-overlay"></div>
+        <div class="recommend-panel-floating">
+            <div class="recommend-title" style="font-weight: 800; font-size: 16px; margin-bottom: 4px;">推荐权重（全历史）</div>
+            <div class="recommend-sub" style="font-size: 12px; color: var(--muted); margin-bottom: 10px;">动态衰减算法：错题加权分配，正确指数衰减</div>
+            <div class="recommend-tags" style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px;">
+                {% for t in recommend_meta.focus_tags %}
+                    <span class="tag" style="background: #eef2ff; color: #3b82f6; padding: 4px 8px; border-radius: 6px; font-size: 12px;">{{ t }}</span>
+                {% endfor %}
+            </div>
+            <div class="recommend-table" style="display: grid; gap: 6px;">
+                <div class="recommend-head" style="display: grid; grid-template-columns: 1fr 40px 40px 60px; gap: 8px; align-items: center; font-size: 12px; color: var(--muted); font-weight: 800;">
+                    <span>标签</span><span style="text-align: right;">频率</span><span style="text-align: right;">错误</span><span style="text-align: right;">弱点分</span>
+                </div>
+                {% for row in recommend_meta.tag_scores %}
+                    <div class="recommend-row {% if row.tag in recommend_meta.focus_tags %}is-top{% endif %}" style="display: grid; grid-template-columns: 1fr 40px 40px 60px; gap: 8px; align-items: center; font-size: 13px; padding: 8px; border: 1px solid var(--border); border-radius: 8px; {% if row.tag in recommend_meta.focus_tags %}border-color: #bae6fd; background: #eef6ff;{% else %}background: #fff;{% endif %}">
+                        <span class="recommend-tag" style="font-weight: 700; white-space: normal; overflow: visible;">{{ row.tag }}</span>
+                        <span style="text-align: right;">{{ row.freq }}</span>
+                        <span style="text-align: right;">{{ row.mistakes }}</span>
+                        <span class="recommend-score" style="font-weight: 900; color: var(--brand-dark); text-align: right;">{{ row.weakness }}</span>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    {% endif %}
+
+    <div class="slider-track" id="slider-track">
+        <!-- Initial questions injected here -->
+        {% for q in questions %}
+            {% include "student/partials/chapter_question.html" %}
+        {% endfor %}
+    </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    const track = document.getElementById('slider-track');
+    let currentIndex = 0;
+    let isAnimating = false;
+    let redoQueue = []; // { qid: ID, targetIndex: Index }
+    
+    // Parse remaining IDs from backend Fisher-Yates shuffle
+    let remainingIds = {{ remaining_ids | tojson | safe }};
+    
+    // Setup initial state
+    // Use requestAnimationFrame to ensure all fonts, margins and flex layouts are fully resolved
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            updateSliderPosition();
+        });
+    });
+
+    // Resize observer to keep centered
+    const resizeObserver = new ResizeObserver(() => {
+        if (!isAnimating) updateSliderPosition();
+    });
+    resizeObserver.observe(track.parentElement);
+
+    // Mouse wheel interaction for switching questions
+    let wheelLock = false;
+    window.addEventListener('wheel', (e) => {
+        if (isAnimating || wheelLock) return;
+
+        // Allow inner scrolling for question body or explanation
+        let target = e.target;
+        let isInnerScrolling = false;
+        while (target && target !== document.body) {
+            if (target.classList && (target.classList.contains('practice-body') || target.classList.contains('explanation-body'))) {
+                const canScrollUp = target.scrollTop > 0;
+                const canScrollDown = target.scrollTop + target.clientHeight < target.scrollHeight - 1;
+                
+                if (e.deltaY < 0 && canScrollUp) isInnerScrolling = true;
+                if (e.deltaY > 0 && canScrollDown) isInnerScrolling = true;
+                
+                if (isInnerScrolling) break;
+            }
+            if (target.tagName === 'TEXTAREA') {
+                isInnerScrolling = true;
+                break;
+            }
+            target = target.parentElement;
+        }
+
+        if (isInnerScrolling) return;
+
+        if (e.deltaY > 0) { // Wheel DOWN -> Next Question
+            goToNext();
+        } else if (e.deltaY < 0) { // Wheel UP -> Prev Question
+            goToPrev();
+        }
+    }, { passive: false });
+
+    function goToNext() {
+        const items = track.querySelectorAll('.slider-item');
+        if (currentIndex >= items.length - 1) return; // Boundary check
+
+        isAnimating = true;
+        wheelLock = true;
+        currentIndex++;
+        updateSliderPosition();
+
+        setTimeout(() => {
+            isAnimating = false;
+            setTimeout(() => { wheelLock = false; }, 200);
+        }, 400);
+    }
+
+    function goToPrev() {
+        if (currentIndex <= 0) return; // Boundary check
+
+        isAnimating = true;
+        wheelLock = true;
+        currentIndex--;
+        updateSliderPosition();
+
+        setTimeout(() => {
+            isAnimating = false;
+            setTimeout(() => { wheelLock = false; }, 200);
+        }, 400);
+    }
+
+    // Handle Compile Button
+    track.addEventListener('click', async (e) => {
+        if (!e.target.classList.contains('btn-compile')) return;
+        
+        const btn = e.target;
+        const item = btn.closest('.slider-item');
+        const form = item.querySelector('.practice-form');
+        const qid = form.querySelector('input[name="q_id"]').value;
+        const codeTextarea = form.querySelector('textarea[name="answer"]');
+        const resultArea = item.querySelector('.compile-result-area');
+        
+        if (!codeTextarea || !codeTextarea.value.trim()) {
+            alert('请先输入代码');
+            return;
+        }
+        
+        // Prevent double clicking
+        btn.disabled = true;
+        btn.textContent = '编译中...';
+        
+        resultArea.style.display = 'block';
+        resultArea.style.backgroundColor = '#f1f5f9';
+        resultArea.style.color = '#475569';
+        resultArea.innerHTML = '<span style="color:#3b82f6;">正在提交至沙盒进行编译...</span>';
+        
+        try {
+            const formData = new FormData();
+            formData.append('q_id', qid);
+            formData.append('code', codeTextarea.value);
+            
+            const res = await fetch('/student/api/practice/chapter/compile', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+            
+            if (data.status === 'success') {
+                const escapeHtml = (str) => (str||'').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                let html = `<div style="color: #166534; font-weight: bold; margin-bottom: 10px;">✅ 编译成功 & 运行完成</div>`;
+                
+                html += `<div style="color: #475569; margin-top: 8px; font-weight: 600;">实际输出 (stdout):</div>
+                         <div style="background: #e2e8f0; padding: 8px; border-radius: 4px; margin-top: 4px; white-space: pre-wrap; word-break: break-all;">${escapeHtml(data.stdout) || '<i>(无输出)</i>'}</div>`;
+                         
+                if (data.stderr) {
+                    html += `<div style="color: #991b1b; margin-top: 8px; font-weight: 600;">标准错误 (stderr):</div>
+                             <div style="background: #fee2e2; padding: 8px; border-radius: 4px; margin-top: 4px; white-space: pre-wrap; word-break: break-all;">${escapeHtml(data.stderr)}</div>`;
+                }
+                
+                resultArea.innerHTML = html;
+            } else {
+                resultArea.style.backgroundColor = '#fef2f2';
+                resultArea.style.color = '#991b1b';
+                // Escape HTML tags to prevent XSS from error logs
+                const safeLog = data.log.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                resultArea.innerHTML = `<strong>❌ 编译失败</strong><br><br>${safeLog}`;
+            }
+        } catch (err) {
+            console.error('Compile error', err);
+            resultArea.style.backgroundColor = '#fef2f2';
+            resultArea.style.color = '#991b1b';
+            resultArea.innerHTML = '<strong>❌ 网络或服务异常</strong><br><br>无法连接到编译服务，请稍后再试';
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '编译';
+        }
+    });
+
+    // Handle form submissions
+    track.addEventListener('submit', async (e) => {
+        if (!e.target.classList.contains('practice-form')) return;
+        e.preventDefault();
+        
+        if (isAnimating) return;
+        isAnimating = true;
+
+        const form = e.target;
+        const item = form.closest('.slider-item');
+        const btn = form.querySelector('.btn-submit');
+        const qid = form.querySelector('input[name="q_id"]').value;
+        const qType = form.querySelector('input[name="q_type"]').value;
+        const overlay = item.querySelector('.status-overlay');
+        
+        btn.disabled = true;
+        btn.textContent = '提交中...';
+
+        try {
+            const formData = new FormData(form);
+            const res = await fetch('/student/api/practice/chapter/submit', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+
+            // Update recommend meta panel if available
+            if (data.recommend_meta && data.recommend_meta.ready) {
+                const meta = data.recommend_meta;
+                const panel = document.querySelector('.recommend-panel-floating');
+                if (panel) {
+                    // Update tags
+                    const tagsContainer = panel.querySelector('.recommend-tags');
+                    if (tagsContainer) {
+                        tagsContainer.innerHTML = (meta.focus_tags || []).map(t => 
+                            `<span class="tag" style="background: #eef2ff; color: #3b82f6; padding: 4px 8px; border-radius: 6px; font-size: 12px;">${t}</span>`
+                        ).join('');
+                    }
+                    
+                    // Update table rows (skip header)
+                    const tableContainer = panel.querySelector('.recommend-table');
+                    if (tableContainer) {
+                        const headerHtml = `<div class="recommend-head" style="display: grid; grid-template-columns: 1fr 40px 40px 60px; gap: 8px; align-items: center; font-size: 12px; color: var(--muted); font-weight: 800;">
+                            <span>标签</span><span style="text-align: right;">频率</span><span style="text-align: right;">错误</span><span style="text-align: right;">弱点分</span>
+                        </div>`;
+                        
+                        const rowsHtml = (meta.tag_scores || []).map(row => {
+                            const isTop = (meta.focus_tags || []).includes(row.tag);
+                            const rowStyle = `display: grid; grid-template-columns: 1fr 40px 40px 60px; gap: 8px; align-items: center; font-size: 13px; padding: 8px; border: 1px solid var(--border); border-radius: 8px; ${isTop ? 'border-color: #bae6fd; background: #eef6ff;' : 'background: #fff;'}`;
+                            return `<div class="recommend-row" style="${rowStyle}">
+                                <span class="recommend-tag" style="font-weight: 700; white-space: normal; overflow: visible;">${row.tag}</span>
+                                <span style="text-align: right;">${row.freq}</span>
+                                <span style="text-align: right;">${row.mistakes ?? row.wrong ?? 0}</span>
+                                <span class="recommend-score" style="font-weight: 900; color: var(--brand-dark); text-align: right;">${row.weakness ?? row.score ?? 0}</span>
+                            </div>`;
+                        }).join('');
+                        
+                        tableContainer.innerHTML = headerHtml + rowsHtml;
+                    }
+                }
+            }
+
+            if (data.is_correct) {
+                // Handle Correct Flow
+                overlay.textContent = '回答正确';
+                overlay.className = 'status-overlay correct show';
+                btn.textContent = '已提交';
+                
+                // If it was in redo queue, it's already removed from DB backend by submit logic.
+                // But we also clean our local array just in case.
+                redoQueue = redoQueue.filter(q => q.qid !== parseInt(qid));
+
+                // Fetch new question immediately to append (Rule 2)
+                await fetchNextQuestion();
+
+                setTimeout(async () => {
+                    goToNext();
+                }, 800);
+
+            } else {
+                // Handle Wrong Flow
+                overlay.textContent = '回答错误';
+                overlay.className = 'status-overlay wrong show';
+                btn.textContent = '已记录到错题本';
+                
+                // If it's a coding question, do not open the explanation panel
+                if (qType === 'coding') {
+                    // Fetch new question immediately to append (Rule 2)
+                    await fetchNextQuestion();
+                    
+                    setTimeout(async () => {
+                        goToNext();
+                    }, 800);
+                    return;
+                }
+
+                // Open Explanation Panel
+                const expWrapper = item.querySelector('.explanation-wrapper');
+                expWrapper.classList.add('open');
+                
+                // The flex layout expands the wrapper, which pushes the card right.
+                // We need to shift the track left simultaneously to keep the *card* centered.
+                // Because center calculation uses DOM widths, we can just call updateSliderPosition 
+                // in the next frame, and the CSS transition will handle the smooth movement!
+                requestAnimationFrame(() => {
+                    updateSliderPosition();
+                });
+
+                // Fetch explanation content
+                const expBody = item.querySelector('.explanation-body');
+                try {
+                    const expRes = await fetch(`/student/api/practice/chapter/explanation?q_id=${qid}`);
+                    const expData = await expRes.json();
+                    if (expData.ok) {
+                        expBody.innerHTML = `
+                            <div style="margin-bottom: 15px;">
+                                <strong>标准答案：</strong><br>
+                                <div style="margin-top:5px; padding:10px; background:#f8fafc; border-radius:6px;">
+                                    ${expData.answer}
+                                </div>
+                            </div>
+                            <div>
+                                <strong>解析：</strong><br>
+                                <div style="margin-top:5px;">
+                                    ${expData.explanation || '<span style="color:#94a3b8;">暂无详细解析</span>'}
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        expBody.innerHTML = '<div class="text-center text-red-500">解析加载失败</div>';
+                    }
+                } catch(err) {
+                    expBody.innerHTML = '<div class="text-center text-red-500">网络异常，加载失败</div>';
+                }
+
+                // Also fetch a new question to append to the end (since this one is done)
+                await fetchNextQuestion();
+                isAnimating = false;
+            }
+
+        } catch (err) {
+            console.error(err);
+            btn.disabled = false;
+            btn.textContent = '提交答案';
+            isAnimating = false;
+            alert('网络异常，提交失败');
+        }
+    });
+
+    // Handle Redo Button
+    track.addEventListener('click', async (e) => {
+        if (e.target.classList.contains('btn-redo')) {
+            if (isAnimating) return;
+            isAnimating = true;
+
+            const btn = e.target;
+            const item = btn.closest('.slider-item');
+            const qid = btn.dataset.qid;
+            
+            btn.disabled = true;
+            btn.textContent = '处理中...';
+
+            try {
+                // 1. Remove mistake from DB
+                const fd = new FormData();
+                fd.append('q_id', qid);
+                await fetch('/student/api/practice/chapter/redo_later', {
+                    method: 'POST',
+                    body: fd
+                });
+
+                // 2. Schedule re-insertion (10 to 15 questions later)
+                const offset = Math.floor(Math.random() * 6) + 10; // 10 to 15
+                redoQueue.push({ qid: parseInt(qid), targetIndex: currentIndex + offset });
+
+                // 3. Close panel & reset overlay
+                const expWrapper = item.querySelector('.explanation-wrapper');
+                expWrapper.classList.remove('open');
+                
+                const overlay = item.querySelector('.status-overlay');
+                overlay.className = 'status-overlay';
+                
+                // Shift to next question
+                setTimeout(() => {
+                    currentIndex++;
+                    updateSliderPosition();
+                    isAnimating = false;
+                }, 300); // wait for panel close animation
+
+            } catch(err) {
+                console.error(err);
+                btn.disabled = false;
+                btn.textContent = '重做';
+                isAnimating = false;
+            }
+        }
+        
+        // Handle favorite toggle
+        if (e.target.classList.contains('favorite-star')) {
+            const qid = e.target.dataset.qid;
+            try {
+                const fd = new FormData();
+                fd.append('q_id', qid);
+                const res = await fetch('/student/favorite/toggle', { method: 'POST', body: fd });
+                const data = await res.json();
+                if (data.ok) {
+                    e.target.style.color = data.favorited ? '#f59e0b' : '#cbd5e1';
+                }
+            } catch (err) {
+                console.error('Toggle favorite failed', err);
+            }
+        }
+    });
+
+    function updateSliderPosition() {
+        const items = track.querySelectorAll('.slider-item');
+        if (items.length === 0) return;
+        
+        if (currentIndex >= items.length) currentIndex = items.length - 1;
+        if (currentIndex < 0) currentIndex = 0;
+
+        let centerOffset = 0;
+        
+        items.forEach((item, idx) => {
+            // Update active state
+            if (idx === currentIndex) {
+                item.classList.remove('inactive');
+            } else {
+                item.classList.add('inactive');
+            }
+            
+            // Calculate absolute distance from the left edge of track
+            if (idx < currentIndex) {
+                // Get computed styles to include dynamic margins (margin-right: 40px)
+                const style = window.getComputedStyle(item);
+                const marginRight = parseFloat(style.marginRight) || 0;
+                // Add bounding width (which includes the opened explanation wrapper) + margin
+                centerOffset += item.getBoundingClientRect().width + marginRight;
+            }
+        });
+        
+        const activeItem = items[currentIndex];
+        const cardWrapper = activeItem.querySelector('.practice-card-wrapper');
+        const expWrapper = activeItem.querySelector('.explanation-wrapper');
+        
+        // Because explanation is flex-ordered LAST (right side), the Question Card starts
+        // exactly at `centerOffset`.
+        const distanceToCard = centerOffset;
+        
+        // Calculate dynamic container width to account for sidebar (avoid 100vw issues)
+        // Using track.parentElement ensures we only measure the actual available workspace width
+        const containerWidth = track.parentElement.clientWidth;
+        
+        // The actual width of the question card itself (excluding the explanation panel)
+        const cardWidth = cardWrapper.getBoundingClientRect().width;
+        
+        // We want the center of the active card to align with the center of the container
+        // Container center: containerWidth / 2
+        // Card center relative to track left: distanceToCard + (cardWidth / 2)
+        // Therefore, we need to shift the track by:
+        const shiftX = (containerWidth / 2) - (distanceToCard + (cardWidth / 2));
+        
+        // Apply precision rounding to avoid sub-pixel blurring (error < 1px)
+        const finalShiftX = Math.round(shiftX);
+        
+        track.style.transform = `translate3d(${finalShiftX}px, 0, 0)`;
+    }
+
+    async function fetchNextQuestion() {
+        try {
+            // Check if we need to insert a redo question
+            const currentGlobalIndex = currentIndex + track.querySelectorAll('.slider-item').length - 1;
+            
+            let targetQid = null;
+            for (let i = 0; i < redoQueue.length; i++) {
+                if (currentGlobalIndex >= redoQueue[i].targetIndex) {
+                    targetQid = redoQueue[i].qid;
+                    redoQueue.splice(i, 1);
+                    break;
+                }
+            }
+
+            if (!targetQid) {
+                if (remainingIds.length === 0) {
+                    // Pool exhausted, reset automatically via new pool fetch
+                    const params = new URLSearchParams({
+                        mode: "{{ mode }}",
+                        chapter: "{{ selected_tag }}",
+                        difficulty: "{{ selected_difficulty }}",
+                    });
+                    {% for t in selected_types %}
+                    params.append("types", "{{ t }}");
+                    {% endfor %}
+                    const poolRes = await fetch('/student/api/practice/chapter/pool?' + params.toString());
+                    const poolData = await poolRes.json();
+                    if (poolData.ok && poolData.pool.length > 0) {
+                        remainingIds = poolData.pool;
+                    } else {
+                        return; // No more questions found
+                    }
+                }
+                targetQid = remainingIds.shift();
+            }
+
+            const url = `/student/api/practice/chapter/get_question?q_id=${targetQid}&mode={{ mode }}`;
+            const response = await fetch(url);
+            if (response.ok) {
+                const html = await response.text();
+                if (html.trim()) {
+                    // Create a temporary container to parse the HTML
+                    const temp = document.createElement('div');
+                    temp.innerHTML = html.trim();
+                    track.appendChild(temp.firstElementChild);
+                }
+            }
+        } catch (err) {
+            console.error('Failed to fetch next question', err);
+        }
+    }
+});
+</script>
+{% endblock %}

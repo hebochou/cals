@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block title %}题目详情 - 管理员{% endblock %}
+
+{% block content %}
+<div class="dashboard">
+    <div class="table-header">
+        <h1>题目详情</h1>
+        <div class="filter-bar">
+            <a class="btn btn-ghost btn-sm" href="{{ url_for("admin_bp.admin_questions", q=q, type=type_filter, difficulty=difficulty_filter, created_from=created_from, created_to=created_to, page=page) }}">返回列表</a>
+            <a class="btn btn-primary btn-sm" href="{{ url_for("admin_bp.admin_question_edit", q_id=question.id) }}">编辑</a>
+            <form method="post" action="{{ url_for("admin_bp.admin_questions") }}" style="display:inline;">
+                <input type="hidden" name="action" value="toggle_enabled">
+                <input type="hidden" name="id" value="{{ question.id }}">
+                <button class="btn btn-ghost btn-sm" type="submit">{% if question.enabled %}禁用{% else %}启用{% endif %}</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="practice-card" style="margin-top:0;">
+        <div class="practice-header">
+            <div class="meta">
+                <span class="badge">{{ question.type_cn or question.type }}</span>
+                <span class="meta-id">题号 {{ question.code_display }}</span>
+                {% if question.level_star %}
+                    <span class="stars small">
+                        {% for i in range(1, 6) %}
+                            <span class="star {% if i <= question.level_star %}on{% endif %}">★</span>
+                        {% endfor %}
+                    </span>
+                {% endif %}
+                {% if question.enabled %}
+                    <span class="badge ghost">启用</span>
+                {% else %}
+                    <span class="badge" style="background:#fee2e2;color:#991b1b;">禁用</span>
+                {% endif %}
+            </div>
+            <div class="tag-list">
+                {% for tag in question.tags_ui or question.tags %}
+                    <span class="tag">{{ tag }}</span>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="practice-body">
+            <div class="question-title">{{ question.title|safe }}</div>
+
+            {% if question.type in ['single','multi'] %}
+                <div class="option-list">
+                    {% for opt in question.options %}
+                        <div class="option-item">
+                            <span class="option-input"></span>
+                            <span class="option-text">{{ opt.key }}. {{ opt.text }}</span>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            {% if question.type == 'text' %}
+                <div class="result-panel neutral">
+                    <div class="result-row">
+                        <div class="result-label">答案</div>
+                        <div class="result-value">{{ question.answer }}</div>
+                    </div>
+                </div>
+            {% endif %}
+
+            {% if question.type == 'coding' %}
+                {% if question.answer %}
+                <div class="result-panel neutral">
+                    <div class="result-row">
+                        <div class="result-label">参考代码</div>
+                        <div class="result-value"><pre class="code-block">{{ question.answer }}</pre></div>
+                    </div>
+                </div>
+                {% endif %}
+            {% endif %}
+
+            {% if question.explain %}
+                <div class="result-panel neutral">
+                    <div class="result-row">
+                        <div class="result-label">解析</div>
+                        <div class="result-value">{{ question.explain|safe }}</div>
+                    </div>
+                </div>
+            {% endif %}
+
+            <div class="practice-footer">
+                <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                    {% if prev_id %}
+                        <a class="btn btn-ghost" href="{{ url_for("admin_bp.admin_question_view", q_id=prev_id, q=q, type=type_filter, difficulty=difficulty_filter, created_from=created_from, created_to=created_to, page=page) }}">上一题</a>
+                    {% endif %}
+                    {% if next_id %}
+                        <a class="btn btn-primary" href="{{ url_for("admin_bp.admin_question_view", q_id=next_id, q=q, type=type_filter, difficulty=difficulty_filter, created_from=created_from, created_to=created_to, page=page) }}">下一题</a>
+                    {% endif %}
+                </div>
+                <div class="delete-wrap">
+                    <form method="post" action="{{ url_for("admin_bp.admin_questions") }}" class="inline-form delete-form">
+                        <input type="hidden" name="action" value="delete">
+                        <input type="hidden" name="id" value="{{ question.id }}">
+                        <button class="btn btn-danger btn-sm js-delete-btn" type="button">删除</button>
+                        <div class="confirm-pop js-confirm" hidden>
+                            <span class="confirm-text">确认删除？</span>
+                            <button class="confirm-btn danger" type="submit">删除</button>
+                            <button class="confirm-btn" type="button" data-action="cancel">取消</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+    const closeAll=()=>{
+        document.querySelectorAll(".js-confirm").forEach((p)=>{p.hidden=true;});
+    };
+    document.addEventListener("click",(e)=>{
+        const btn=e.target.closest(".js-delete-btn");
+        const pop=e.target.closest(".js-confirm");
+        const cancel=e.target.closest('[data-action="cancel"]');
+        if(btn){
+            closeAll();
+            const wrap=btn.closest(".delete-form");
+            const p=wrap?.querySelector(".js-confirm");
+            if(p){ p.hidden=false; }
+            return;
+        }
+        if(cancel){
+            closeAll();
+            return;
+        }
+        if(pop){
+            return;
+        }
+        closeAll();
+    });
+</script>
+{% endblock %}

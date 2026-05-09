@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}CALS 自适应学习系统{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <div class="app-layout {% if session.get('user') %}has-sidebar{% endif %}">
+        {% if session.get('user') %}
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <a href="{{ url_for("auth_bp.index") }}" class="brand">
+                    <span class="brand-text">CALS</span>
+                </a>
+                <button type="button" class="sidebar-toggle" id="sidebar-toggle" aria-label="切换导航栏"></button>
+            </div>
+            <nav class="sidebar-nav">
+                {% set roles = session.get('roles') or [] %}
+                {% if request.path.startswith('/admin') and ('admin' in roles or session.get('role') == 'admin') %}
+                    <a href="{{ url_for("admin_bp.admin_dashboard") }}" class="sidebar-link {% if request.path == url_for("admin_bp.admin_dashboard") %}active{% endif %}">
+                        <span class="sidebar-icon">D</span>
+                        <span class="sidebar-text">数据总览</span>
+                    </a>
+                    <a href="{{ url_for("admin_bp.admin_question_new") }}" class="sidebar-link {% if request.path == url_for("admin_bp.admin_question_new") %}active{% endif %}">
+                        <span class="sidebar-icon">N</span>
+                        <span class="sidebar-text">新增题目</span>
+                    </a>
+                    <a href="{{ url_for("admin_bp.admin_questions") }}" class="sidebar-link {% if request.path == url_for("admin_bp.admin_questions") %}active{% endif %}">
+                        <span class="sidebar-icon">M</span>
+                        <span class="sidebar-text">题目管理</span>
+                    </a>
+                {% elif session.get('role') == 'student' or 'student' in roles %}
+                    <a href="{{ url_for("student_bp.student_home") }}" class="sidebar-link {% if request.path == url_for("student_bp.student_home") %}active{% endif %}">
+                        <span class="sidebar-icon">H</span>
+                        <span class="sidebar-text">首页</span>
+                    </a>
+                    <div class="sidebar-dropdown {% if request.path.startswith('/student/practice') %}open{% endif %}">
+                        <a href="javascript:void(0);" class="sidebar-link dropdown-toggle {% if request.path.startswith('/student/practice') %}active{% endif %}" onclick="this.parentElement.classList.toggle('open')">
+                            <span class="sidebar-icon">P</span>
+                            <span class="sidebar-text">练习</span>
+                            <span class="dropdown-arrow" style="margin-left: auto; font-size: 10px;">▼</span>
+                        </a>
+                        <div class="dropdown-menu" style="display: none; padding-left: 10px; flex-direction: column; gap: 4px; margin-top: 4px;">
+                            <a href="{{ url_for("student_bp.student_practice", mode='chapter_select') }}" class="sidebar-link sub-link {% if request.path.startswith('/student/practice') and request.args.get('mode') in ['chapter_select', 'chapter'] %}active{% endif %}">
+                                <span class="sidebar-icon" style="font-size: 12px; width: 20px; height: 20px; line-height: 20px;">章</span>
+                                <span class="sidebar-text">按章节练习</span>
+                            </a>
+                            <a href="{{ url_for("student_bp.student_practice", mode='recommend') }}" class="sidebar-link sub-link {% if request.path == url_for("student_bp.student_practice") and request.args.get('mode') == 'recommend' %}active{% endif %}">
+                                <span class="sidebar-icon" style="font-size: 12px; width: 20px; height: 20px; line-height: 20px;">推</span>
+                                <span class="sidebar-text">智能推荐</span>
+                            </a>
+                        </div>
+                    </div>
+                    <a href="{{ url_for("student_bp.student_favorites") }}" class="sidebar-link {% if request.path.startswith('/student/favorites') %}active{% endif %}">
+                        <span class="sidebar-icon">F</span>
+                        <span class="sidebar-text">收藏</span>
+                    </a>
+                    <a href="{{ url_for("student_bp.student_mistakes") }}" class="sidebar-link {% if request.path == url_for("student_bp.student_mistakes") %}active{% endif %}">
+                        <span class="sidebar-icon">M</span>
+                        <span class="sidebar-text">错题本</span>
+                    </a>
+                    <a href="{{ url_for("student_bp.student_questions") }}" class="sidebar-link {% if request.path.startswith('/student/questions') %}active{% endif %}">
+                        <span class="sidebar-icon">Q</span>
+                        <span class="sidebar-text">题库</span>
+                    </a>
+                {% endif %}
+            </nav>
+            <div class="sidebar-footer">
+                <div class="user-info">
+                    <span class="user-avatar">{{ (session.get('display_name') or session['user'])[0] }}</span>
+                    <span class="user-name">{{ session.get('display_name') or session['user'] }}</span>
+                </div>
+                <a class="sidebar-link logout" href="{{ url_for("auth_bp.logout") }}">
+                    <span class="sidebar-icon">X</span>
+                    <span class="sidebar-text">退出</span>
+                </a>
+            </div>
+        </aside>
+        {% endif %}
+
+        <div class="main-wrapper">
+            {% if not session.get('user') %}
+            <header class="topbar">
+                <div class="topbar-inner">
+                    <a href="{{ request.full_path }}" class="brand">
+                        <span class="brand-text">CALS</span>
+                    </a>
+                    <nav class="nav-links">
+                        <a class="link {% if request.path == url_for("auth_bp.login") %}primary active{% endif %}" href="{{ url_for("auth_bp.login") }}">学生登录</a>
+                        <a class="link {% if request.path == url_for("auth_bp.admin_login") %}primary active{% endif %}" href="{{ url_for("auth_bp.admin_login") }}">管理员入口</a>
+                    </nav>
+                </div>
+            </header>
+            {% endif %}
+
+            <main class="container">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        <div class="flash-list">
+                        {% for category, message in messages %}
+                            <div class="flash {% if category == 'error' %}flash-error{% else %}flash-success{% endif %}">
+                                <span class="flash-text">{{ message }}</span>
+                            </div>
+                        {% endfor %}
+                        </div>
+                    {% endif %}
+                {% endwith %}
+
+                {% block content %}{% endblock %}
+            </main>
+
+            <footer class="footer">
+                <div class="footer-inner">
+                    <div class="footer-text">
+                        <p>© 2026 CALS 自适应学习系统</p>
+                    </div>
+                    <div class="footer-links"></div>
+                </div>
+            </footer>
+        </div>
+    </div>
+    <div class="loading-overlay" id="loading-overlay" aria-hidden="true">
+        <div class="loading-spinner"></div>
+    </div>
+    {% if session.get('user') %}
+    <script>
+        (function(){
+            const sidebar=document.getElementById("sidebar");
+            const btn=document.getElementById("sidebar-toggle");
+            if(!sidebar || !btn){return;}
+            const key="cals_sidebar_collapsed";
+            const apply=(collapsed)=>{
+                if(collapsed){sidebar.classList.add("collapsed");}
+                else{sidebar.classList.remove("collapsed");}
+            };
+            apply(localStorage.getItem(key)==="1");
+            btn.addEventListener("click",()=>{
+                const collapsed=!sidebar.classList.contains("collapsed");
+                apply(collapsed);
+                localStorage.setItem(key,collapsed?"1":"0");
+            });
+        })();
+    </script>
+    {% endif %}
+    <script>
+        function copyAdminCode(btn, elementId) {
+            const text = document.getElementById(elementId).value;
+            const temp = document.createElement('textarea');
+            temp.value = text;
+            document.body.appendChild(temp);
+            temp.select();
+            try {
+                document.execCommand('copy');
+                const oldText = btn.textContent;
+                btn.textContent = '已复制';
+                btn.style.color = '#16a34a';
+                setTimeout(() => {
+                    btn.textContent = oldText;
+                    btn.style.color = '';
+                }, 2000);
+            } catch (err) {
+                console.error('Copy failed', err);
+            }
+            document.body.removeChild(temp);
+        }
+    </script>
+    {% block page_scripts %}{% endblock %}
+</body>
+</html>

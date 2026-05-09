@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+{% block title %}数据总览 - CALS{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard">
+    <div class="table-header">
+        <h1>数据总览</h1>
+        <div class="filter-bar">
+            <select class="input" id="range-select">
+                <option value="day" {% if range == 'day' %}selected{% endif %}>日</option>
+                <option value="week" {% if range == 'week' %}selected{% endif %}>周</option>
+                <option value="month" {% if range == 'month' %}selected{% endif %}>月</option>
+                <option value="year" {% if range == 'year' %}selected{% endif %}>年</option>
+            </select>
+            <a class="btn btn-primary btn-sm" href="{{ url_for("admin_bp.admin_questions") }}">题目管理</a>
+        </div>
+    </div>
+
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon">📚</div>
+            <div>
+                <div class="stat-label">题目总数</div>
+                <div class="stat-value" id="metric-total-questions">{{ stats.total_questions }}</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">🧾</div>
+            <div>
+                <div class="stat-label">提交数</div>
+                <div class="stat-value" id="metric-submissions">{{ stats.total_submissions }}</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">✅</div>
+            <div>
+                <div class="stat-label">正确率</div>
+                <div class="stat-value" id="metric-accuracy">{{ stats.accuracy_percent }}%</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">⏱️</div>
+            <div>
+                <div class="stat-label">有效提交</div>
+                <div class="stat-value" id="metric-graded">{{ stats.graded_count }}</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="admin-layout admin-dashboard">
+        <div class="table-card">
+            <div class="table-header">
+                <h2>提交趋势</h2>
+            </div>
+            <canvas id="chart-line" height="120"></canvas>
+        </div>
+        <div class="table-card">
+            <div class="table-header">
+                <h2>题型分布</h2>
+            </div>
+            <canvas id="chart-pie" height="120"></canvas>
+        </div>
+    </div>
+
+    <div class="admin-layout admin-dashboard">
+        <div class="table-card">
+            <div class="table-header">
+                <h2>难度分布</h2>
+            </div>
+            <canvas id="chart-bar" height="120"></canvas>
+        </div>
+        <div class="table-card">
+            <div class="table-header">
+                <h2>高频题目</h2>
+            </div>
+            <div class="table-wrap">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>题号</th>
+                            <th>题目</th>
+                            <th>提交数</th>
+                        </tr>
+                    </thead>
+                    <tbody id="top-questions-body">
+                        {% for row in stats.top_questions %}
+                        <tr>
+                            <td>{{ row.code }}</td>
+                            <td class="table-title">{{ row.title }}</td>
+                            <td>{{ row.count }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+    const overlay=document.getElementById("loading-overlay");
+    const showLoading=(v)=>{ if(!overlay){return;} overlay.classList.toggle("show",!!v); };
+
+    const initialData={{ stats|tojson }};
+    const lineCtx=document.getElementById("chart-line");
+    const pieCtx=document.getElementById("chart-pie");
+    const barCtx=document.getElementById("chart-bar");
+    let lineChart=null;
+    let pieChart=null;
+    let barChart=null;
+
+    const buildCharts=(data)=>{
+        if(!window.Chart){return;}
+        if(lineChart){ lineChart.destroy(); }
+        if(pieChart){ pieChart.destroy(); }
+        if(barChart){ barChart.destroy(); }
+        lineChart=new Chart(lineCtx,{
+            type:"line",
+            data:{ labels:data.trend.labels, datasets:[{ label:"提交数", data:data.trend.values, borderColor:"#0ea5e9", backgroundColor:"rgba(14,165,233,0.15)", tension:0.25, fill:true }]},
+            options:{ responsive:true, plugins:{ legend:{ display:false } }, scales:{ y:{ beginAtZero:true } } }
+        });
+        pieChart=new Chart(pieCtx,{
+            type:"doughnut",
+            data:{ labels:data.type_dist.labels, datasets:[{ data:data.type_dist.values, backgroundColor:["#0ea5e9","#22c55e","#f59e0b","#a855f7"] }]},
+            options:{ responsive:true, plugins:{ legend:{ position:"bottom" } } }
+        });
+        barChart=new Chart(barCtx,{
+            type:"bar",
+            data:{ labels:data.level_dist.labels, datasets:[{ label:"题目数", data:data.level_dist.values, backgroundColor:"rgba(3,105,161,0.45)", borderColor:"#0369a1", borderWidth:1 }]},
+            options:{ responsive:true, plugins:{ legend:{ display:false } }, scales:{ y:{ beginAtZero:true } } }
+        });
+    };
+
+    const applyMetrics=(data)=>{
+        const set=(id,val)=>{ const el=document.getElementById(id); if(el){ el.textContent=val; } };
+        set("metric-total-questions",data.total_questions);
+        set("metric-submissions",data.total_submissions);
+        set("metric-accuracy",`${data.accuracy_percent}%`);
+        set("metric-graded",data.graded_count);
+        const body=document.getElementById("top-questions-body");
+        if(body){
+            body.innerHTML=data.top_questions.map((row)=>(
+                `<tr><td>${row.code}</td><td class="table-title">${row.title}</td><td>${row.count}</td></tr>`
+            )).join("");
+        }
+    };
+
+    const fetchStats=async()=>{
+        const range=document.getElementById("range-select").value;
+        showLoading(true);
+        try{
+            const resp=await fetch(`{{ url_for("admin_bp.admin_api_stats") }}?range=${encodeURIComponent(range)}`,{headers:{"Accept":"application/json"}});
+            if(!resp.ok){return;}
+            const payload=await resp.json();
+            if(!payload || !payload.ok){return;}
+            applyMetrics(payload.data);
+            buildCharts(payload.data);
+        }finally{
+            showLoading(false);
+        }
+    };
+
+    buildCharts(initialData);
+    document.getElementById("range-select").addEventListener("change",fetchStats);
+    fetchStats();
+</script>
+{% endblock %}

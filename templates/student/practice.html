@@ -1,0 +1,382 @@
+{% extends "base.html" %}
+{% block title %}练习模式 - CALS{% endblock %}
+
+{% block content %}
+<div class="practice">
+    {% if not question %}
+    <div class="practice-card">
+        <div class="practice-header">
+            <div class="meta">
+                <span class="badge">练习推荐</span>
+                <span class="meta-id">先选择章节与难度</span>
+            </div>
+        </div>
+        <div class="practice-body">
+            <form method="get" class="practice-select">
+                <input type="hidden" name="mode" value="chapter">
+                <div class="field field-full">
+                    <label>章节</label>
+                    <div class="chapter-grid">
+                        {% for c in chapters %}
+                            <label class="chapter-item">
+                                <input type="radio" name="chapter" value="{{ c }}" class="chapter-radio" {% if selected_chapter == c %}checked{% endif %} required>
+                                <span class="chapter-text">{{ c }}</span>
+                            </label>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="field field-full">
+                    <label>难度</label>
+                    <div class="difficulty-grid">
+                        <label class="difficulty-item">
+                            <input type="radio" name="diff" value="easy" class="chapter-radio" {% if selected_diff == 'easy' %}checked{% endif %} required>
+                            <span class="chapter-text">简单（1~2 星）</span>
+                        </label>
+                        <label class="difficulty-item">
+                            <input type="radio" name="diff" value="medium" class="chapter-radio" {% if selected_diff == 'medium' %}checked{% endif %} required>
+                            <span class="chapter-text">中等（2~3 星）</span>
+                        </label>
+                        <label class="difficulty-item">
+                            <input type="radio" name="diff" value="hard" class="chapter-radio" {% if selected_diff == 'hard' %}checked{% endif %} required>
+                            <span class="chapter-text">困难（4~5 星）</span>
+                        </label>
+                        <label class="difficulty-item">
+                            <input type="radio" name="diff" value="random" class="chapter-radio" {% if selected_diff == 'random' or not selected_diff %}checked{% endif %} required>
+                            <span class="chapter-text">随机难度</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="field field-full">
+                    <label>题型（不选则随机）</label>
+                    <div class="difficulty-grid">
+                        <label class="difficulty-item">
+                            <input type="checkbox" name="types" value="single" class="chapter-radio" {% if selected_types and 'single' in selected_types %}checked{% endif %}>
+                            <span class="chapter-text">单选</span>
+                        </label>
+                        <label class="difficulty-item">
+                            <input type="checkbox" name="types" value="multi" class="chapter-radio" {% if selected_types and 'multi' in selected_types %}checked{% endif %}>
+                            <span class="chapter-text">多选</span>
+                        </label>
+                        <label class="difficulty-item">
+                            <input type="checkbox" name="types" value="text" class="chapter-radio" {% if selected_types and 'text' in selected_types %}checked{% endif %}>
+                            <span class="chapter-text">填空</span>
+                        </label>
+                        <label class="difficulty-item">
+                            <input type="checkbox" name="types" value="coding" class="chapter-radio" {% if selected_types and 'coding' in selected_types %}checked{% endif %}>
+                            <span class="chapter-text">编程</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="practice-footer">
+                    <a href="{{ url_for("student_bp.student_home") }}" class="btn btn-ghost">返回</a>
+                    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                        <button type="submit" class="btn btn-primary">开始练习</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% else %}
+    <div class="practice-single">
+    <div class="practice-card">
+        <div class="practice-header">
+            <div class="meta">
+                <span class="badge">
+                    {% if question.type == 'single' %}单选{% elif question.type == 'multi' %}多选{% elif question.type == 'text' %}填空{% else %}编程{% endif %}
+                </span>
+                <span class="meta-id">题号 {{ question.code_display }}</span>
+                {% if question.level_star %}
+                    <span class="stars small">
+                        {% for i in range(1, 6) %}
+                            <span class="star {% if i <= question.level_star %}on{% endif %}">★</span>
+                        {% endfor %}
+                    </span>
+                {% endif %}
+            </div>
+            <div class="tag-list">
+                {% for tag in question.tags_ui or question.tags %}
+                    <span class="tag">{{ tag }}</span>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="practice-body">
+            <div class="practice-mode">
+                {% if mode == 'chapter' %}
+                    <span class="badge ghost">章节：{{ selected_tag }}</span>
+                    <span class="badge ghost">难度：{% if selected_difficulty == 'easy' %}简单{% elif selected_difficulty == 'medium' %}中等{% elif selected_difficulty == 'hard' %}困难{% else %}随机{% endif %}</span>
+                    <a class="btn btn-ghost btn-sm" href="{{ url_for("student_bp.student_practice") }}">重新选择</a>
+                {% elif mode == 'recommend' %}
+                    <span class="badge ghost">智能推荐</span>
+                    {% if selected_tag %}
+                        <span class="badge ghost">重点：{{ selected_tag }}</span>
+                    {% endif %}
+                    {% if selected_difficulty %}
+                        <span class="badge ghost">近20题正确率：{{ selected_difficulty }}%</span>
+                    {% endif %}
+                    <a class="btn btn-ghost btn-sm" href="{{ url_for("student_bp.student_practice") }}">按章节推荐</a>
+                {% else %}
+                    <a class="btn btn-ghost btn-sm" href="{{ url_for("student_bp.student_practice") }}">按章节推荐</a>
+                {% endif %}
+            </div>
+
+            <div class="question-title">{{ question.title|safe }}</div>
+
+            <form method="post" class="practice-form">
+                <input type="hidden" name="q_id" value="{{ question.id }}">
+                <input type="hidden" name="mode" value="{{ mode or 'random' }}">
+                <input type="hidden" name="tag" value="{{ selected_tag or '' }}">
+                <input type="hidden" name="difficulty" value="{{ selected_difficulty or '' }}">
+                {% if selected_types %}
+                    {% for t in selected_types %}
+                        <input type="hidden" name="types" value="{{ t }}">
+                    {% endfor %}
+                {% endif %}
+
+                {% if 'admin' in session.get('roles', []) %}
+                    <div style="margin-bottom: 15px; padding: 10px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; font-size: 13px;">
+                        <strong style="color: #d97706;">[管理员可见] 本题答案：</strong>
+                        <div style="margin-top: 5px; color: #92400e;">
+                            {% if question.type == 'coding' %}
+                                <textarea id="hidden-code-{{ question.id }}" style="display:none;">{{ question.answer }}</textarea>
+                                <button type="button" class="btn btn-ghost btn-sm" onclick="copyAdminCode(this, 'hidden-code-{{ question.id }}')">点击复制</button>
+                            {% elif question.type == 'multi' %}
+                                {{ question.answer|join(', ') }}
+                            {% else %}
+                                {{ question.answer }}
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endif %}
+
+                {% if question.type == 'single' %}
+                    <div class="option-list">
+                        {% for opt in question.options %}
+                            <label class="option-item">
+                                <input type="radio" name="answer" value="{{ opt.key }}" required class="option-input" {% if show_result and user_answer == opt.key %}checked{% endif %}>
+                                <span class="option-text">{{ opt.key }}. {{ opt.text }}</span>
+                            </label>
+                        {% endfor %}
+                    </div>
+                {% elif question.type == 'multi' %}
+                    <div class="option-list">
+                        {% for opt in question.options %}
+                            <label class="option-item">
+                                <input type="checkbox" name="answer" value="{{ opt.key }}" class="option-input" {% if show_result and user_answer is sequence and user_answer is not string and opt.key in user_answer %}checked{% endif %}>
+                                <span class="option-text">{{ opt.key }}. {{ opt.text }}</span>
+                            </label>
+                        {% endfor %}
+                    </div>
+                {% elif question.type == 'coding' %}
+                    <textarea name="answer" rows="8" class="answer-text" placeholder="请输入你的代码">{% if show_result %}{{ user_answer }}{% endif %}</textarea>
+                    <div class="result-panel neutral" style="margin-top:12px;">
+                        <div class="result-title">运行样例</div>
+                        <div class="result-row">
+                            <button type="button" class="btn btn-ghost btn-sm" id="run-sample-btn" data-qid="{{ question.id }}">运行样例</button>
+                        </div>
+                        <div class="result-row" id="run-sample-stdin" style="display:none;">
+                            <div class="result-label">样例输入</div>
+                            <pre class="result-code" id="run-stdin-text"></pre>
+                        </div>
+                        <div class="result-row" id="run-sample-out" style="display:none;">
+                            <div class="result-label">输出</div>
+                            <pre class="result-code" id="run-stdout-text"></pre>
+                        </div>
+                        <div class="result-row" id="run-sample-exp" style="display:none;">
+                            <div class="result-label">期望输出</div>
+                            <pre class="result-code" id="run-expected-text"></pre>
+                        </div>
+                        <div class="result-row" id="run-sample-err" style="display:none;">
+                            <div class="result-label">信息</div>
+                            <pre class="result-code" id="run-stderr-text"></pre>
+                        </div>
+                    </div>
+                {% else %}
+                    <textarea name="answer" rows="4" required class="answer-text" placeholder="请输入你的答案">{% if show_result %}{{ user_answer }}{% endif %}</textarea>
+                {% endif %}
+
+                {% if can_view_plain_answers and not show_result %}
+                    <div class="result-panel neutral" style="margin-top:12px;">
+                        <div class="result-title">答案（仅管理员/特殊账号可见）</div>
+                        {% if question.type in ['single','multi','text'] %}
+                            <div class="result-row">
+                                <div class="result-label">正确答案</div>
+                                <div class="result-value">
+                                    {% if question.answer is sequence and question.answer is not string %}
+                                        {{ question.answer|join(", ") }}
+                                    {% else %}
+                                        {{ question.answer }}
+                                    {% endif %}
+                                </div>
+                            </div>
+                        {% elif question.type == 'coding' and question.answer %}
+                            <div class="result-row">
+                                <div class="result-label">参考代码</div>
+                                <pre class="result-code">{{ question.answer }}</pre>
+                            </div>
+                        {% endif %}
+                    </div>
+                {% endif %}
+
+                {% if show_result %}
+                    <div class="result-panel {% if is_correct is true %}good{% elif is_correct is false %}bad{% else %}neutral{% endif %}">
+                        <div class="result-title">
+                            {% if is_correct is true %}回答正确{% elif is_correct is false %}回答错误{% else %}已提交{% endif %}
+                        </div>
+                        <div class="result-row">
+                            <div class="result-label">难度</div>
+                            <div class="result-value">{{ question.level_star or 1 }} 星</div>
+                        </div>
+                        <div class="result-row">
+                            <div class="result-label">知识点</div>
+                            <div class="result-value">
+                                <div class="tag-list">
+                                    {% for tag in question.tags_ui or question.tags %}
+                                        <span class="tag">{{ tag }}</span>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                        {% if question.type in ['single','multi','text'] %}
+                            <div class="result-row">
+                                <div class="result-label">正确答案</div>
+                                <div class="result-value">
+                                    {% if question.answer is sequence and question.answer is not string %}
+                                        {{ question.answer|join(", ") }}
+                                    {% else %}
+                                        {{ question.answer }}
+                                    {% endif %}
+                                </div>
+                            </div>
+                        {% elif question.type == 'coding' and question.answer %}
+                            <div class="result-row">
+                                <div class="result-label">参考答案</div>
+                                <pre class="result-code">{{ question.answer }}</pre>
+                            </div>
+                        {% endif %}
+                        {% if question.explain %}
+                            <div class="result-row">
+                                <div class="result-label">解析</div>
+                                <div class="result-value">{{ question.explain|safe }}</div>
+                            </div>
+                        {% endif %}
+                        <div class="result-row">
+                            <button type="button" class="btn btn-ghost btn-sm" id="favorite-btn" data-qid="{{ question.id }}" data-fav="{{ 1 if favorited else 0 }}">
+                                {% if favorited %}取消收藏{% else %}收藏{% endif %}
+                            </button>
+                        </div>
+                    </div>
+                {% endif %}
+
+                <div class="practice-footer">
+                    <button type="button" class="btn btn-ghost">报错</button>
+                    {% if show_result %}
+                        <a href="{{ url_for("student_bp.student_practice", redo_id=question.id) }}" class="btn btn-secondary">重做</a>
+                        {% if mode == 'chapter' %}
+                            <a href="{{ url_for("student_bp.student_practice", mode='chapter', chapter=selected_tag, diff=selected_difficulty, types=selected_types) }}" class="btn btn-primary">下一题</a>
+                        {% else %}
+                            <a href="{{ url_for("student_bp.student_practice", mode=mode, tag=selected_tag, difficulty=selected_difficulty, types=selected_types) }}" class="btn btn-primary">下一题</a>
+                        {% endif %}
+                    {% else %}
+                        <button type="submit" class="btn btn-primary">提交答案</button>
+                    {% endif %}
+                </div>
+            </form>
+        </div>
+    </div>
+    </div>
+    {% endif %}
+</div>
+{% if question %}
+<script>
+    const favBtn=document.getElementById("favorite-btn");
+    if(favBtn){
+        favBtn.addEventListener("click",async()=>{
+            const qid=favBtn.dataset.qid;
+            const fd=new FormData();
+            fd.append("q_id",qid);
+            const resp=await fetch("{{ url_for("student_bp.student_toggle_favorite") }}",{method:"POST",body:fd});
+            if(!resp.ok){return;}
+            const data=await resp.json();
+            if(data && data.ok){
+                favBtn.dataset.fav=data.favorited? "1":"0";
+                favBtn.textContent=data.favorited? "取消收藏":"收藏";
+            }
+        });
+    }
+
+    const runBtn=document.getElementById("run-sample-btn");
+    if(runBtn){
+        runBtn.addEventListener("click",async()=>{
+            runBtn.disabled=true;
+            runBtn.textContent="运行中...";
+            const form=document.querySelector(".practice-form");
+            const code=form?.querySelector("textarea[name='answer']")?.value || "";
+            const fd=new FormData();
+            fd.append("q_id",runBtn.dataset.qid);
+            fd.append("code",code);
+            const resp=await fetch("{{ url_for("student_bp.student_coding_run_sample") }}",{method:"POST",body:fd});
+            const stdinRow=document.getElementById("run-sample-stdin");
+            const outRow=document.getElementById("run-sample-out");
+            const expRow=document.getElementById("run-sample-exp");
+            const errRow=document.getElementById("run-sample-err");
+            const stdinText=document.getElementById("run-stdin-text");
+            const outText=document.getElementById("run-stdout-text");
+            const expText=document.getElementById("run-expected-text");
+            const errText=document.getElementById("run-stderr-text");
+            if(stdinRow && stdinText){
+                stdinRow.style.display="flex";
+                stdinText.textContent="";
+            }
+            if(outRow && outText){
+                outRow.style.display="flex";
+                outText.textContent="";
+            }
+            if(expRow && expText){
+                expRow.style.display="none";
+                expText.textContent="";
+            }
+            if(errRow && errText){
+                errRow.style.display="flex";
+                errText.textContent="";
+            }
+            if(resp.ok){
+                const data=await resp.json();
+                if(stdinText){ stdinText.textContent=(data.stdin||""); }
+                if(expRow && expText && (data.expected!==undefined)){
+                    expRow.style.display="flex";
+                    expText.textContent=(data.expected||"");
+                }
+                if(data.data){
+                    const d=data.data;
+                    if(outText){ outText.textContent=(d.stdout||""); }
+                    if(errText){
+                        let verdict="";
+                        if(data.sample_passed===true){ verdict="样例通过"; }
+                        if(data.sample_passed===false){ verdict="样例未通过"; }
+                        const base=(d.compile_ok? (d.run_ok? "运行成功" : "运行失败") : "编译失败");
+                        const msg=(verdict? (base+" / "+verdict) : base)+"\n"+(d.stderr||"");
+                        errText.textContent=msg.trim();
+                    }
+                }else{
+                    if(errText){ errText.textContent="运行失败"; }
+                }
+            }else{
+                let msg="runner 不可用，请先启动 docker compose";
+                try{
+                    const data=await resp.json();
+                    if(data && data.error){
+                        msg=`${data.error}`;
+                        if(data.runner){ msg+=`\n${data.runner}`; }
+                        if(data.detail){ msg+=`\n${data.detail}`; }
+                    }
+                }catch(e){}
+                if(errText){ errText.textContent=msg; }
+            }
+            runBtn.disabled=false;
+            runBtn.textContent="运行样例";
+        });
+    }
+</script>
+{% endif %}
+{% endblock %}

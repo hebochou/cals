@@ -1,0 +1,638 @@
+{% extends "base.html" %}
+{% block title %}{% if edit_question %}编辑题目{% else %}新增题目{% endif %} - CALS{% endblock %}
+
+{% block head %}
+<link href="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.snow.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard">
+    <div class="table-header">
+        <h1>{% if edit_question %}编辑题目{% else %}新增题目{% endif %}</h1>
+        <div class="filter-bar">
+            <a class="btn btn-ghost btn-sm" href="{{ url_for("admin_bp.admin_questions") }}">返回列表</a>
+            {% if edit_question %}
+            <a class="btn btn-ghost btn-sm" href="{{ url_for("admin_bp.admin_question_new") }}">新增题目</a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="form-card">
+        <div class="wizard-steps" id="wizard-steps">
+            <button type="button" class="wizard-step active" data-step="1">1 类型</button>
+            <button type="button" class="wizard-step" data-step="2">2 题目</button>
+            <button type="button" class="wizard-step" data-step="3">3 预览</button>
+        </div>
+
+        <form method="post" id="question-form" class="form-grid">
+            {% if edit_question %}
+                <input type="hidden" name="id" value="{{ edit_question.id }}">
+            {% endif %}
+            <input type="hidden" name="type" id="q-type" value="{{ edit_question.type if edit_question else 'single' }}">
+            <input type="hidden" name="level" id="q-level" value="{{ edit_level if edit_question else 1 }}">
+            <input type="hidden" name="title" id="q-title" value="{{ edit_question.title if edit_question else '' }}">
+            <input type="hidden" name="explain" id="q-explain" value="{{ edit_question.explain if edit_question else '' }}">
+
+            <div class="wizard-panel active" data-step="1">
+                <div class="field field-full">
+                    <label>题目类型</label>
+                    <div class="type-group" data-value="{{ edit_question.type if edit_question else 'single' }}" data-mode="{% if edit_question %}edit{% else %}add{% endif %}"
+                        data-next-single="{{ next_code_map['single'] }}" data-next-multi="{{ next_code_map['multi'] }}"
+                        data-next-text="{{ next_code_map['text'] }}" data-next-coding="{{ next_code_map['coding'] }}">
+                        <button type="button" class="type-btn" data-type="single">单选题</button>
+                        <button type="button" class="type-btn" data-type="multi">多选题</button>
+                        <button type="button" class="type-btn" data-type="text">填空题</button>
+                        <button type="button" class="type-btn" data-type="coding">编程题</button>
+                    </div>
+                </div>
+                <div class="field field-full code-compact-field">
+                    <label>题目编号</label>
+                    <input class="input code-input" id="q-code" readonly value="{{ edit_code if edit_question else next_code_map['single'] }}">
+                </div>
+                <div class="field field-full">
+                    <label>难度</label>
+                    <div class="star-group" data-value="{{ edit_level if edit_question else 1 }}">
+                        <button type="button" class="star" data-value="1">★</button>
+                        <button type="button" class="star" data-value="2">★</button>
+                        <button type="button" class="star" data-value="3">★</button>
+                        <button type="button" class="star" data-value="4">★</button>
+                        <button type="button" class="star" data-value="5">★</button>
+                    </div>
+                    <div class="star-hint">一星最简单，五星最高</div>
+                </div>
+                <div class="field field-full">
+                    <label>题目状态</label>
+                    <label class="correct-choice">
+                        <input type="checkbox" name="enabled" value="1" {% if edit_question and edit_question.enabled is false %}{% else %}checked{% endif %}>
+                        <span>启用（学生端可见）</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="wizard-panel" data-step="2">
+                <div class="field field-full">
+                    <label>题目标题（富文本）</label>
+                    <div class="rich-editor title-editor" id="title-editor"></div>
+                </div>
+                <div class="field field-full type-section" data-type="single">
+                    <label>选项与正确答案</label>
+                    <div class="option-grid">
+                        {% set keys = ['A','B','C','D'] %}
+                        {% for key in keys %}
+                            {% set ns = namespace(text='') %}
+                            {% if edit_question and edit_question.options %}
+                                {% for opt in edit_question.options %}
+                                    {% if opt.key == key %}
+                                        {% set ns.text = opt.text %}
+                                    {% endif %}
+                                {% endfor %}
+                            {% endif %}
+                            <div class="option-row">
+                                <input type="hidden" name="opt_key" value="{{ key }}">
+                                <span class="option-key">{{ key }}</span>
+                                <input class="input option-input" name="opt_text" placeholder="选项内容" value="{{ ns.text }}">
+                                <label class="correct-choice">
+                                    <input type="radio" name="correct" value="{{ key }}" {% if edit_question and edit_question.type == 'single' and edit_question.answer == key %}checked{% endif %}>
+                                    <span>正确</span>
+                                </label>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="field field-full type-section" data-type="multi">
+                    <label>选项与正确答案</label>
+                    <div class="option-grid">
+                        {% set keys = ['A','B','C','D'] %}
+                        {% for key in keys %}
+                            {% set ns = namespace(text='') %}
+                            {% if edit_question and edit_question.options %}
+                                {% for opt in edit_question.options %}
+                                    {% if opt.key == key %}
+                                        {% set ns.text = opt.text %}
+                                    {% endif %}
+                                {% endfor %}
+                            {% endif %}
+                            <div class="option-row">
+                                <input type="hidden" name="opt_key" value="{{ key }}">
+                                <span class="option-key">{{ key }}</span>
+                                <input class="input option-input" name="opt_text" placeholder="选项内容" value="{{ ns.text }}">
+                                <label class="correct-choice">
+                                    <input type="checkbox" name="correct" value="{{ key }}" {% if edit_question and edit_question.type == 'multi' and edit_question.answer is sequence and edit_question.answer is not string and key in edit_question.answer %}checked{% endif %}>
+                                    <span>正确</span>
+                                </label>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="field field-full type-section" data-type="text">
+                    <label>正确答案</label>
+                    <input class="input" name="answer_text" value="{% if edit_question and edit_question.type == 'text' %}{{ edit_question.answer }}{% endif %}">
+                </div>
+                <div class="field field-full type-section" data-type="coding">
+                    <label>参考答案（可选）</label>
+                    <textarea class="input textarea" name="answer_ref" rows="6" placeholder="不会作为标准判题，仅用于讲解">{% if edit_question and edit_question.type == 'coding' %}{{ edit_question.answer }}{% endif %}</textarea>
+                </div>
+                <div class="field field-full">
+                    <label>解析（富文本，支持插图）</label>
+                    <div class="rich-editor" id="explain-editor"></div>
+                    <div class="form-hint">内容会自动保存到本地草稿；提交时将进行安全过滤</div>
+                </div>
+                <div class="field field-full">
+                    <label>知识点（可手动输入，用逗号分隔）</label>
+                    <input type="text" name="tags" id="q-tags" class="input" placeholder="输入标签，用逗号分隔（如：指针,数组）" value="{{ edit_question.tags|join(',') if edit_question else '' }}">
+                    <div class="tag-group tag-tree" id="tag-tree" data-value="{{ edit_question.tags|join(',') if edit_question else '' }}">
+                        <button type="button" class="tag-btn tag-cat" data-cat="基本数据类型">基本数据类型</button>
+                        <button type="button" class="tag-btn tag-cat" data-cat="基本算数运算">基本算数运算</button>
+                        <button type="button" class="tag-btn tag-cat" data-cat="键盘输入与屏幕输出">键盘输入与屏幕输出</button>
+                        <button type="button" class="tag-btn tag-cat" data-cat="选择控制结构">选择控制结构</button>
+                        <button type="button" class="tag-btn tag-cat" data-cat="循环控制结构">循环控制结构</button>
+                        <button type="button" class="tag-btn tag-cat" data-cat="函数与模块化">函数与模块化</button>
+                        <button type="button" class="tag-btn tag-cat" data-cat="数组">数组</button>
+                        <button type="button" class="tag-btn tag-cat" data-cat="指针">指针</button>
+                        <button type="button" class="tag-btn tag-cat" data-cat="字符串">字符串</button>
+                        <button type="button" class="tag-btn tag-cat" data-cat="结构体">结构体</button>
+                    </div>
+                    <div class="form-hint">点击大类可展开细分标签；选择细分标签会自动包含所属大类</div>
+                </div>
+            </div>
+
+            <div class="wizard-panel" data-step="3">
+                <div class="field field-full">
+                    <label>题目预览</label>
+                    <div class="preview-card" id="question-preview"></div>
+                </div>
+                {% if edit_question and edit_question.history %}
+                <div class="field field-full">
+                    <label>修改历史</label>
+                    <div class="table-card" style="box-shadow:none;">
+                        <div class="table-wrap">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>时间</th>
+                                        <th>用户</th>
+                                        <th>动作</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for h in edit_question.history|reverse %}
+                                    <tr>
+                                        <td>{{ h.ts or '-' }}</td>
+                                        <td>{{ h.user or '-' }}</td>
+                                        <td>{{ h.action or '-' }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="wizard-actions">
+                <div class="wizard-left">
+                    <button type="button" class="btn btn-ghost" id="btn-prev">上一步</button>
+                    <button type="button" class="btn btn-ghost" id="btn-next">下一步</button>
+                </div>
+                <div class="wizard-right">
+                    <button type="button" class="btn btn-ghost" id="btn-clear-draft">清空草稿</button>
+                    <button class="btn btn-primary" type="submit">{% if edit_question %}保存修改{% else %}创建题目{% endif %}</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+    const overlay=document.getElementById("loading-overlay");
+    const showLoading=(v)=>{ if(!overlay){return;} overlay.classList.toggle("show",!!v); };
+
+    const form=document.getElementById("question-form");
+    const stepsEl=document.getElementById("wizard-steps");
+    const stepButtons=[...stepsEl.querySelectorAll(".wizard-step")];
+    const panels=[...document.querySelectorAll(".wizard-panel")];
+    let step=1;
+
+    const typeGroup=document.querySelector(".type-group");
+    const tagGroup=document.getElementById("tag-tree");
+    const stars=document.querySelector(".star-group");
+    const qType=document.getElementById("q-type");
+    const qLevel=document.getElementById("q-level");
+    const qTags=document.getElementById("q-tags");
+    const qTitle=document.getElementById("q-title");
+    const qExplain=document.getElementById("q-explain");
+    const qCode=document.getElementById("q-code");
+    let updateCode=null;
+
+    const setStep=(n)=>{
+        step=Math.max(1,Math.min(3,n));
+        stepButtons.forEach((b)=>b.classList.toggle("active",Number(b.dataset.step)===step));
+        panels.forEach((p)=>p.classList.toggle("active",Number(p.dataset.step)===step));
+        document.getElementById("btn-prev").disabled=(step===1);
+        document.getElementById("btn-next").disabled=(step===3);
+        if(step===3){ renderPreview(); }
+    };
+    stepButtons.forEach((b)=>b.addEventListener("click",()=>setStep(Number(b.dataset.step))));
+    document.getElementById("btn-prev").addEventListener("click",()=>setStep(step-1));
+    document.getElementById("btn-next").addEventListener("click",()=>setStep(step+1));
+
+    const applyTypeUi=()=>{
+        const t=qType.value;
+        document.querySelectorAll(".type-section").forEach((el)=>{
+            el.style.display=(el.dataset.type===t)?"block":"none";
+        });
+    };
+
+    const setActiveButtons=(container,selector,isActive)=>{
+        container.querySelectorAll(selector).forEach((btn)=>{
+            btn.classList.toggle("active",isActive(btn));
+        });
+    };
+
+    if(typeGroup){
+        updateCode=()=>{
+            const mode=typeGroup.dataset.mode;
+            if(mode==="edit"){return;}
+            const t=qType.value;
+            const map={
+                single:typeGroup.dataset.nextSingle,
+                multi:typeGroup.dataset.nextMulti,
+                text:typeGroup.dataset.nextText,
+                coding:typeGroup.dataset.nextCoding
+            };
+            if(qCode && map[t]){qCode.value=map[t];}
+        };
+        typeGroup.querySelectorAll(".type-btn").forEach((btn)=>{
+            btn.addEventListener("click",()=>{
+                qType.value=btn.dataset.type;
+                typeGroup.dataset.value=qType.value;
+                setActiveButtons(typeGroup,".type-btn",(b)=>b.dataset.type===qType.value);
+                applyTypeUi();
+                updateCode();
+                saveDraft();
+            });
+        });
+        setActiveButtons(typeGroup,".type-btn",(b)=>b.dataset.type===qType.value);
+        updateCode();
+    }
+
+    if(stars){
+        stars.querySelectorAll(".star").forEach((btn)=>{
+            btn.addEventListener("click",()=>{
+                qLevel.value=btn.dataset.value;
+                stars.dataset.value=qLevel.value;
+                setActiveButtons(stars,".star",(b)=>Number(b.dataset.value)<=Number(qLevel.value));
+                saveDraft();
+            });
+        });
+        setActiveButtons(stars,".star",(b)=>Number(b.dataset.value)<=Number(stars.dataset.value||"1"));
+    }
+
+    if(tagGroup){
+        const TAG_TREE={
+            "基本数据类型":["整型","浮点型","字符型","void类型","类型修饰符","类型转换"],
+            "基本算数运算":["算术运算符","表达式","运算符优先级","自增自减"],
+            "键盘输入与屏幕输出":["printf","scanf","getchar","putchar","gets","puts"],
+            "选择控制结构":["if语句","if-else语句","switch语句","条件运算符"],
+            "循环控制结构":["for循环","while循环","do-while循环","break","continue"],
+            "函数与模块化":["函数定义","函数声明","参数传递","递归","头文件","预处理指令"],
+            "数组":["数组定义","一维数组","多维数组","数组初始化","数组遍历","数组排序","数组查找"],
+            "指针":["指针定义","指针运算","指针与数组","指针与函数","动态内存分配","指针与字符串"],
+            "字符串":["字符串定义","字符串输入输出","字符串函数","字符串与指针"],
+            "结构体":["结构体定义","结构体变量","结构体数组","结构体指针","结构体与函数","共用体","枚举"]
+        };
+
+        const parse=(s)=>s.split(",").map((x)=>x.trim()).filter(Boolean);
+        const state=new Set(parse(tagGroup.dataset.value||""));
+        const selectionCount=(s)=>{
+            const arr=[...s];
+            const subs=arr.filter((t)=>typeof t==="string" && t.includes(":"));
+            const cats=arr.filter((t)=>typeof t==="string" && !t.includes(":"));
+            const catOnly=cats.filter((cat)=>!subs.some((sub)=>sub.startsWith(`${cat}:`)));
+            return subs.length+catOnly.length;
+        };
+        const canAddWith=(mutator)=>{
+            const tmp=new Set(state);
+            mutator(tmp);
+            return selectionCount(tmp)<=3;
+        };
+
+        const hasAnySub=(cat)=>{
+            for(const t of state){
+                if(typeof t==="string" && t.startsWith(`${cat}:`)){return true;}
+            }
+            return false;
+        };
+
+        const syncValue=()=>{
+            qTags.value=[...state].sort().join(",");
+            tagGroup.dataset.value=qTags.value;
+        };
+
+        const updateCatActive=()=>{
+            tagGroup.querySelectorAll(".tag-cat").forEach((btn)=>{
+                const cat=btn.dataset.cat;
+                btn.classList.toggle("active",state.has(cat) || hasAnySub(cat));
+            });
+        };
+
+        const closeInline=(cat)=>{
+            tagGroup.querySelectorAll(`.tag-inline[data-cat="${cat}"]`).forEach((el)=>el.remove());
+        };
+
+        const buildSubGroup=(cat)=>{
+            const inline=document.createElement("span");
+            inline.className="tag-inline";
+            inline.dataset.cat=cat;
+            const sep=document.createElement("span");
+            sep.className="tag-sep";
+            sep.textContent="：";
+            inline.appendChild(sep);
+            const group=document.createElement("span");
+            group.className="tag-subgroup";
+            const subs=TAG_TREE[cat]||[];
+            subs.forEach((sub)=>{
+                const b=document.createElement("button");
+                b.type="button";
+                b.className="tag-btn tag-sub";
+                b.dataset.cat=cat;
+                b.dataset.sub=sub;
+                b.textContent=sub;
+                b.addEventListener("click",()=>{
+                    const full=`${cat}:${sub}`;
+                    if(state.has(full)){
+                        state.delete(full);
+                    }else{
+                        if(!canAddWith((tmp)=>{
+                            tmp.add(full);
+                            tmp.add(cat);
+                        })){
+                            alert("最多选择3个知识点标签");
+                            return;
+                        }
+                        state.add(full);
+                        state.add(cat);
+                    }
+                    if(!hasAnySub(cat) && !state.has(cat)){
+                        state.delete(cat);
+                    }
+                    syncValue();
+                    updateCatActive();
+                    inline.querySelectorAll(".tag-sub").forEach((x)=>{
+                        const f=`${x.dataset.cat}:${x.dataset.sub}`;
+                        x.classList.toggle("active",state.has(f));
+                    });
+                    saveDraft();
+                });
+                group.appendChild(b);
+            });
+            inline.appendChild(group);
+            return inline;
+        };
+
+        const openCat=(btn)=>{
+            const cat=btn.dataset.cat;
+            const next=btn.nextElementSibling;
+            if(next && next.classList.contains("tag-inline") && next.dataset.cat===cat){
+                closeInline(cat);
+                return;
+            }
+            closeInline(cat);
+            const inline=buildSubGroup(cat);
+            btn.insertAdjacentElement("afterend",inline);
+            inline.querySelectorAll(".tag-sub").forEach((x)=>{
+                const f=`${x.dataset.cat}:${x.dataset.sub}`;
+                x.classList.toggle("active",state.has(f));
+            });
+        };
+
+        const removeCatWithSubs=(cat)=>{
+            state.delete(cat);
+            for(const t of [...state]){
+                if(typeof t==="string" && t.startsWith(`${cat}:`)){
+                    state.delete(t);
+                }
+            }
+        };
+
+        tagGroup.querySelectorAll(".tag-cat").forEach((btn)=>{
+            btn.addEventListener("click",(e)=>{
+                const cat=btn.dataset.cat;
+                if(e.ctrlKey || e.metaKey){
+                    if(state.has(cat) || hasAnySub(cat)){
+                        removeCatWithSubs(cat);
+                    }else{
+                        if(!canAddWith((tmp)=>tmp.add(cat))){
+                            alert("最多选择3个知识点标签");
+                            return;
+                        }
+                        state.add(cat);
+                    }
+                    syncValue();
+                    updateCatActive();
+                    closeInline(cat);
+                    saveDraft();
+                    return;
+                }
+                openCat(btn);
+            });
+        });
+
+        syncValue();
+        updateCatActive();
+    }
+
+    let quill=null;
+    let quillTitle=null;
+    const editorEl=document.getElementById("explain-editor");
+    const titleEditorEl=document.getElementById("title-editor");
+    if(editorEl && window.Quill){
+        quill=new Quill(editorEl,{theme:"snow",modules:{toolbar:[["bold","italic","underline"],[{list:"ordered"},{list:"bullet"}],["code-block","link","image"],[{header:[1,2,false]}],["clean"]]}});
+        const initial=qExplain.value||"";
+        if(initial){ quill.clipboard.dangerouslyPasteHTML(initial); }
+        quill.on("text-change",()=>{
+            qExplain.value=quill.root.innerHTML||"";
+            saveDraft();
+        });
+    }
+    if(titleEditorEl && window.Quill){
+        quillTitle=new Quill(titleEditorEl,{theme:"snow",modules:{toolbar:[["bold","italic","underline"],[{header:[1,2,false]}],["clean"]]}});
+        const initial=qTitle.value||"";
+        if(initial){ quillTitle.clipboard.dangerouslyPasteHTML(initial); }
+        quillTitle.on("text-change",()=>{
+            qTitle.value=quillTitle.root.innerHTML||"";
+            saveDraft();
+        });
+    }
+
+    const draftKey="{% if edit_question %}cals_admin_question_edit_{{ edit_question.id }}{% else %}cals_admin_question_new{% endif %}";
+    const saveDraft=()=>{
+        const payload={
+            type:qType.value,
+            level:qLevel.value,
+            tags:qTags.value,
+            title:qTitle.value||"",
+            enabled:form.querySelector("[name=enabled]")?.checked?1:0,
+            explain:qExplain.value||"",
+            opt_text:[...form.querySelectorAll("[name=opt_text]")].map((x)=>x.value||""),
+            correct_single:form.querySelector("[name=correct]:checked")?.value||"",
+            correct_multi:[...form.querySelectorAll("[name=correct]:checked")].map((x)=>x.value)
+        };
+        localStorage.setItem(draftKey,JSON.stringify(payload));
+    };
+
+    const loadDraft=()=>{
+        const raw=localStorage.getItem(draftKey);
+        if(!raw){return;}
+        let payload=null;
+        try{payload=JSON.parse(raw);}catch(e){return;}
+        if(!payload){return;}
+        qType.value=payload.type||qType.value;
+        qLevel.value=String(payload.level||qLevel.value||"1");
+        qTags.value=payload.tags||qTags.value;
+        qTitle.value=payload.title||qTitle.value||"";
+        const enabledEl=form.querySelector("[name=enabled]");
+        if(enabledEl){enabledEl.checked=payload.enabled?true:false;}
+        qExplain.value=payload.explain||qExplain.value;
+        if(quill){ quill.clipboard.dangerouslyPasteHTML(qExplain.value||""); }
+        if(quillTitle){ quillTitle.clipboard.dangerouslyPasteHTML(qTitle.value||""); }
+        const optTextEls=[...form.querySelectorAll("[name=opt_text]")];
+        optTextEls.forEach((el,idx)=>{ if(payload.opt_text && payload.opt_text[idx]!=null){ el.value=payload.opt_text[idx]; }});
+        if(payload.type==="single" && payload.correct_single){
+            const el=form.querySelector(`[name=correct][value="${payload.correct_single}"]`);
+            if(el){el.checked=true;}
+        }
+        if(payload.type==="multi" && Array.isArray(payload.correct_multi)){
+            payload.correct_multi.forEach((v)=>{
+                const el=form.querySelector(`[name=correct][value="${v}"]`);
+                if(el){el.checked=true;}
+            });
+        }
+        if(typeGroup){
+            typeGroup.dataset.value=qType.value;
+            setActiveButtons(typeGroup,".type-btn",(b)=>b.dataset.type===qType.value);
+        }
+        if(updateCode){ updateCode(); }
+        if(stars){
+            stars.dataset.value=qLevel.value;
+            setActiveButtons(stars,".star",(b)=>Number(b.dataset.value)<=Number(qLevel.value));
+        }
+        if(tagGroup){
+            tagGroup.dataset.value=qTags.value;
+            tagGroup.querySelectorAll(".tag-inline").forEach((x)=>x.remove());
+            tagGroup.querySelectorAll(".tag-cat").forEach((btn)=>{
+                const cat=btn.dataset.cat;
+                const set=new Set((qTags.value||"").split(",").map((x)=>x.trim()).filter(Boolean));
+                btn.classList.toggle("active",[...set].some((t)=>t===cat || (typeof t==="string" && t.startsWith(`${cat}:`))));
+            });
+        }
+        applyTypeUi();
+    };
+
+    const clearDraft=()=>{
+        localStorage.removeItem(draftKey);
+        location.reload();
+    };
+
+    document.getElementById("btn-clear-draft").addEventListener("click",clearDraft);
+    form.addEventListener("input",saveDraft);
+    form.addEventListener("change",saveDraft);
+
+    const renderPreview=()=>{
+        const preview=document.getElementById("question-preview");
+        if(!preview){return;}
+        const title=qTitle.value||"";
+        const tags=(qTags.value||"").split(",").map((x)=>x.trim()).filter(Boolean);
+        const type=qType.value;
+        const explain=qExplain.value||"";
+        const options=[...form.querySelectorAll(".option-row")].map((row)=>{
+            const key=row.querySelector(".option-key")?.textContent?.trim()||"";
+            const text=row.querySelector("[name=opt_text]")?.value||"";
+            return {key,text};
+        }).filter((x)=>x.key && x.text);
+        const optHtml=(type==="single"||type==="multi")?(
+            `<div class="option-list">${options.map((o)=>(
+                `<div class="option-item"><span class="option-input"></span><span class="option-text">${o.key}. ${o.text}</span></div>`
+            )).join("")}</div>`
+        ):"";
+        const subsByCat=new Set(tags.filter((t)=>t.includes(":")).map((t)=>t.split(":")[0]));
+        const tagUi=tags.filter((t)=>{
+            if(!t.includes(":") && subsByCat.has(t)){return false;}
+            return true;
+        }).map((t)=>t.includes(":")?t.split(":").slice(1).join(":"):t);
+        const tagHtml=tagUi.map((t)=>`<span class="tag">${t}</span>`).join("");
+        preview.innerHTML=`<div class="practice-card" style="box-shadow:none;border:0;">
+            <div class="practice-header">
+                <div class="meta">
+                    <span class="badge">${type==="single"?"单选":type==="multi"?"多选":type==="text"?"填空":"编程"}</span>
+                    <span class="meta-id">预览</span>
+                </div>
+                <div class="tag-list">${tagHtml}</div>
+            </div>
+            <div class="practice-body">
+                <div class="question-title">${title||"（未填写标题）"}</div>
+                ${optHtml}
+                ${explain?`<div class="result-panel neutral"><div class="result-row"><div class="result-label">解析</div><div class="result-value">${explain}</div></div></div>`:""}
+            </div>
+        </div>`;
+    };
+
+    form.addEventListener("submit",(e)=>{
+        const tagsStr = qTags.value || "";
+        const tagsCount = tagsStr.split(/,|，/).filter(t => t.trim()).length;
+        if (tagsCount > 3) {
+            e.preventDefault();
+            alert("标签验证失败：最多只能选择或输入3个标签！");
+            return;
+        }
+        if (/[@#\$%\^&\*\(\)\+=\{\}\[\]\\\|;'\"<>\.\?\/]/.test(tagsStr)) {
+            e.preventDefault();
+            alert("标签验证失败：包含不允许的特殊字符！");
+            return;
+        }
+
+        const qTypeVal = qType.value;
+        if (qTypeVal === "single") {
+            const singleChecked = document.querySelector('.type-section[data-type="single"] input[name="correct"]:checked');
+            if (!singleChecked) {
+                e.preventDefault();
+                alert("答案验证失败：单选题必须选择一个正确选项！");
+                return;
+            }
+        } else if (qTypeVal === "multi") {
+            const multiChecked = document.querySelectorAll('.type-section[data-type="multi"] input[name="correct"]:checked');
+            if (multiChecked.length < 2) {
+                e.preventDefault();
+                alert("答案验证失败：多选题必须至少选择两个正确选项！");
+                return;
+            }
+        } else if (qTypeVal === "text") {
+            const textAnswer = document.querySelector('input[name="answer_text"]').value.trim();
+            if (!textAnswer) {
+                e.preventDefault();
+                alert("答案验证失败：填空题必须填写答案！");
+                return;
+            }
+        } else if (qTypeVal === "coding") {
+            const codingAnswer = document.querySelector('textarea[name="answer_ref"]').value.trim();
+            if (!codingAnswer) {
+                e.preventDefault();
+                alert("答案验证失败：编程题必须提供参考代码！");
+                return;
+            }
+        }
+
+        showLoading(true);
+        if(quill){ qExplain.value=quill.root.innerHTML||""; }
+        if(quillTitle){ qTitle.value=quillTitle.root.innerHTML||""; }
+    });
+
+    loadDraft();
+    applyTypeUi();
+    setStep(1);
+</script>
+{% endblock %}

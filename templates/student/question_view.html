@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}题目详情 - CALS{% endblock %}
+
+{% block content %}
+<div class="practice">
+    <div class="practice-card">
+        <div class="practice-header">
+            <div class="meta">
+                <span class="badge">{{ question.type_cn or question.type }}</span>
+                <span class="meta-id">题号 {{ question.code_display }}</span>
+                {% if question.level_star %}
+                    <span class="stars small">
+                        {% for i in range(1, 6) %}
+                            <span class="star {% if i <= question.level_star %}on{% endif %}">★</span>
+                        {% endfor %}
+                    </span>
+                {% endif %}
+            </div>
+            <div class="tag-list">
+                {% for tag in question.tags_ui or question.tags %}
+                    <span class="tag">{{ tag }}</span>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="practice-body">
+            <div class="question-title">{{ question.title|safe }}</div>
+
+            {% if question.type in ['single','multi'] %}
+                <div class="option-list">
+                    {% for opt in question.options %}
+                        <div class="option-item">
+                            <span class="option-input"></span>
+                            <span class="option-text">{{ opt.key }}. {{ opt.text }}</span>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            {% if question.type == 'text' %}
+                <div class="result-panel neutral">
+                    <div class="result-row">
+                        <div class="result-label">参考答案</div>
+                        <div class="result-value">{{ question.answer }}</div>
+                    </div>
+                </div>
+            {% endif %}
+
+            {% if question.type == 'coding' %}
+                {% if question.answer %}
+                <div class="result-panel neutral">
+                    <div class="result-row">
+                        <div class="result-label">参考代码</div>
+                        <div class="result-value"><pre class="code-block">{{ question.answer }}</pre></div>
+                    </div>
+                </div>
+                {% endif %}
+            {% endif %}
+
+            {% if question.explain %}
+                <div class="result-panel neutral">
+                    <div class="result-row">
+                        <div class="result-label">解析</div>
+                        <div class="result-value">{{ question.explain|safe }}</div>
+                    </div>
+                </div>
+            {% endif %}
+
+            <div class="practice-footer">
+                <a class="btn btn-ghost" href="{{ url_for("student_bp.student_questions") }}{% if qs %}?{{ qs }}{% endif %}">返回题库</a>
+                <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                    {% if prev_id %}
+                        <a class="btn btn-ghost" href="{{ url_for("student_bp.student_question_view", q_id=prev_id) }}{% if qs %}?{{ qs }}{% endif %}">上一题</a>
+                    {% endif %}
+                    {% if next_id %}
+                        <a class="btn btn-primary" href="{{ url_for("student_bp.student_question_view", q_id=next_id) }}{% if qs %}?{{ qs }}{% endif %}">下一题</a>
+                    {% endif %}
+                    <button type="button" class="btn btn-ghost" id="favorite-btn" data-qid="{{ question.id }}" data-fav="{{ 1 if favorited else 0 }}">{{ "取消收藏" if favorited else "收藏" }}</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+    const favBtn=document.getElementById("favorite-btn");
+    if(favBtn){
+        favBtn.addEventListener("click",async()=>{
+            const qid=favBtn.dataset.qid;
+            const fd=new FormData();
+            fd.append("q_id",qid);
+            const resp=await fetch("{{ url_for("student_bp.student_toggle_favorite") }}",{method:"POST",body:fd});
+            if(!resp.ok){return;}
+            const data=await resp.json();
+            if(data && data.ok){
+                favBtn.dataset.fav=data.favorited? "1":"0";
+                favBtn.textContent=data.favorited? "取消收藏":"收藏";
+            }
+        });
+    }
+</script>
+{% endblock %}
+

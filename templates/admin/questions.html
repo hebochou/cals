@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+{% block title %}题目管理 - CALS{% endblock %}
+
+{% block content %}
+<div class="dashboard">
+    <div class="table-header">
+        <h1>题目管理</h1>
+        <div class="filter-bar">
+            <a class="btn btn-primary btn-sm" href="{{ url_for("admin_bp.admin_question_new") }}">新增题目</a>
+            <a class="btn btn-ghost btn-sm" href="{{ url_for("admin_bp.admin_dashboard") }}">数据总览</a>
+        </div>
+    </div>
+
+    <div class="table-card">
+        <form method="get" class="filter-bar">
+            <input class="input" name="q" placeholder="搜索题目/题号" value="{{ q or '' }}">
+            <select class="input" name="type">
+                <option value="">题型</option>
+                <option value="single" {% if type_filter == 'single' %}selected{% endif %}>单选</option>
+                <option value="multi" {% if type_filter == 'multi' %}selected{% endif %}>多选</option>
+                <option value="text" {% if type_filter == 'text' %}selected{% endif %}>填空</option>
+                <option value="coding" {% if type_filter == 'coding' %}selected{% endif %}>编程</option>
+            </select>
+            <select class="input" name="difficulty">
+                <option value="">难度</option>
+                {% for d in range(1, 6) %}
+                    <option value="{{ d }}" {% if difficulty_filter == d|string %}selected{% endif %}>{{ d }} 星</option>
+                {% endfor %}
+            </select>
+            <input class="input" type="date" name="created_from" value="{{ created_from or '' }}">
+            <input class="input" type="date" name="created_to" value="{{ created_to or '' }}">
+            <div class="questions-toolbar">
+                <div class="toolbar-left">
+                    <button class="btn btn-primary btn-sm" type="submit">筛选</button>
+                    <a class="btn btn-ghost btn-sm" href="{{ url_for("admin_bp.admin_questions") }}">重置</a>
+                    <a class="btn btn-ghost btn-sm" href="{{ url_for("admin_bp.admin_export_questions", q=q, type=type_filter, difficulty=difficulty_filter, status=status_filter, created_from=created_from, created_to=created_to) }}">导出</a>
+                </div>
+                <div class="toolbar-right">
+                    <button class="btn btn-danger btn-sm" type="submit" form="batch-form" onclick="document.getElementById('batch-op').value='delete'">批量删除</button>
+                    <button class="btn btn-ghost btn-sm" type="submit" form="batch-form" onclick="document.getElementById('batch-op').value='enable'">批量启用</button>
+                    <button class="btn btn-ghost btn-sm" type="submit" form="batch-form" onclick="document.getElementById('batch-op').value='disable'">批量禁用</button>
+                    <span class="count-badge">共 {{ total_count }} 题，当前第 {{ page }} / {{ total_pages }} 页</span>
+                </div>
+            </div>
+        </form>
+
+        <form method="post" id="batch-form">
+            <input type="hidden" name="action" value="batch">
+            <input type="hidden" name="op" id="batch-op" value="">
+        </form>
+
+        <div class="table-wrap admin-questions-wrap">
+            <table class="table admin-questions-table">
+                <thead>
+                    <tr>
+                        <th style="width:44px;"><input type="checkbox" id="select-all"></th>
+                        <th>题号</th>
+                        <th>题目</th>
+                        <th>题型</th>
+                        <th>难度</th>
+                        <th>创建时间</th>
+                        <th>使用</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for q0 in questions %}
+                    <tr class="{% if not q0.enabled %}row-disabled{% endif %}">
+                        <td>
+                            <input type="checkbox" name="ids" value="{{ q0.id }}" form="batch-form" class="row-check">
+                        </td>
+                        <td>
+                            <a class="link-plain" href="{{ url_for("admin_bp.admin_question_view", q_id=q0.id, q=q, type=type_filter, difficulty=difficulty_filter, status=status_filter, created_from=created_from, created_to=created_to, page=page) }}">{{ q0.code_display }}</a>
+                        </td>
+                        <td class="table-title">{{ q0.title|striptags }}</td>
+                        <td class="type-cell">{{ q0.type_cn or q0.type }}</td>
+                        <td>{{ q0.level_star }}★</td>
+                        <td>{{ q0.createdAt or '-' }}</td>
+                        <td>{{ q0.usage_count }}</td>
+                        <td>
+                            <div class="row-actions">
+                                <a class="icon-btn" href="{{ url_for("admin_bp.admin_question_edit", q_id=q0.id) }}" title="编辑">
+                                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zm2.92 2.83H5v-.92l9.06-9.06.92.92L5.92 20.08zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z"/></svg>
+                                </a>
+                                <form method="post" class="inline-form">
+                                    <input type="hidden" name="action" value="toggle_enabled">
+                                    <input type="hidden" name="id" value="{{ q0.id }}">
+                                    <button class="icon-btn status-toggle {% if q0.enabled %}is-enabled{% else %}is-disabled{% endif %}" type="submit" title="{% if q0.enabled %}点击禁用{% else %}点击启用{% endif %}">
+                                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5.66 14.24L7.76 6.34A7.94 7.94 0 0 1 12 4c4.41 0 8 3.59 8 8 0 1.57-.46 3.03-1.25 4.24zM4 12c0-1.57.46-3.03 1.25-4.24l9.9 9.9A7.94 7.94 0 0 1 12 20c-4.41 0-8-3.59-8-8z"/></svg>
+                                    </button>
+                                </form>
+                                <div class="delete-wrap">
+                                    <form method="post" class="inline-form delete-form">
+                                        <input type="hidden" name="action" value="delete">
+                                        <input type="hidden" name="id" value="{{ q0.id }}">
+                                        <button class="icon-btn danger js-delete-btn" type="button" title="删除">
+                                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 7h12l-1 14H7L6 7zm3-3h6l1 2H8l1-2z"/></svg>
+                                        </button>
+                                        <div class="confirm-pop js-confirm" hidden>
+                                            <span class="confirm-text">确认删除？</span>
+                                            <button class="confirm-btn danger" type="submit">删除</button>
+                                            <button class="confirm-btn" type="button" data-action="cancel">取消</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% if not questions %}
+                    <tr><td colspan="8">
+                        <div class="empty-state" style="margin:10px 0;">
+                            <div class="empty-icon">🗂️</div>
+                            <div class="empty-title">暂无数据</div>
+                            <div class="empty-desc">调整筛选条件或新增题目后再试</div>
+                            <a class="btn btn-primary btn-sm" href="{{ url_for("admin_bp.admin_question_new") }}">新增题目</a>
+                        </div>
+                    </td></tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="pager">
+            <div class="pager-left">
+                {% if page > 1 %}
+                    <a class="btn btn-ghost btn-sm" href="{{ url_for("admin_bp.admin_questions", page=page-1, q=q, type=type_filter, difficulty=difficulty_filter, created_from=created_from, created_to=created_to) }}">上一页</a>
+                {% endif %}
+            </div>
+            <div class="pager-mid">
+                {% set window = 5 %}
+                {% set start_page = 1 %}
+                {% if total_pages > window %}
+                    {% if page <= 3 %}
+                        {% set start_page = 1 %}
+                    {% elif page >= total_pages - 2 %}
+                        {% set start_page = total_pages - window + 1 %}
+                    {% else %}
+                        {% set start_page = page - 2 %}
+                    {% endif %}
+                {% endif %}
+                {% set end_page = start_page + window - 1 %}
+                {% if end_page > total_pages %}
+                    {% set end_page = total_pages %}
+                {% endif %}
+                {% for p in range(start_page, end_page + 1) %}
+                    <a class="btn btn-ghost btn-sm {% if p == page %}btn-active{% endif %}" href="{{ url_for("admin_bp.admin_questions", page=p, q=q, type=type_filter, difficulty=difficulty_filter, created_from=created_from, created_to=created_to) }}">{{ p }}</a>
+                {% endfor %}
+            </div>
+            <div class="pager-right">
+                {% if page < total_pages %}
+                    <a class="btn btn-ghost btn-sm" href="{{ url_for("admin_bp.admin_questions", page=page+1, q=q, type=type_filter, difficulty=difficulty_filter, created_from=created_from, created_to=created_to) }}">下一页</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+    const selectAll=document.getElementById("select-all");
+    const checks=[...document.querySelectorAll(".row-check")];
+    if(selectAll){
+        selectAll.addEventListener("change",()=>{
+            checks.forEach((c)=>{c.checked=selectAll.checked;});
+        });
+    }
+
+    const closeAll=()=>{
+        document.querySelectorAll(".js-confirm").forEach((p)=>{p.hidden=true;});
+    };
+    document.addEventListener("click",(e)=>{
+        const btn=e.target.closest(".js-delete-btn");
+        const pop=e.target.closest(".js-confirm");
+        const cancel=e.target.closest('[data-action="cancel"]');
+        if(btn){
+            closeAll();
+            const wrap=btn.closest(".delete-form");
+            const p=wrap?.querySelector(".js-confirm");
+            if(p){ p.hidden=false; }
+            return;
+        }
+        if(cancel){
+            closeAll();
+            return;
+        }
+        if(pop){
+            return;
+        }
+        closeAll();
+    });
+</script>
+{% endblock %}

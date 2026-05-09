@@ -1,0 +1,17 @@
+services:
+  c_runner:
+    build:
+      context: ./runner
+    ports:
+      - "127.0.0.1:18080:18080"
+    read_only: true
+    tmpfs:
+      - /tmp:exec,mode=1777,size=512m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 128
+    mem_limit: 512m
+    cpus: "1.0"
+

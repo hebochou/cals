@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}管理员登录 - CALS{% endblock %}
+
+{% block content %}
+<div class="auth-wrapper">
+    <div class="auth-card">
+        <div class="auth-hero admin">
+            <div class="auth-icon">🛡️</div>
+            <h1 class="auth-title">管理员登录</h1>
+            <p class="auth-subtitle">进入题库与规则管理后台</p>
+        </div>
+
+        <form method="post" class="auth-form">
+            <div class="field">
+                <label for="username">用户名</label>
+                <input type="text" name="username" id="username" required minlength="3" maxlength="20" pattern="^[a-zA-Z0-9_]+$" title="用户名必须是3-20位的字母、数字或下划线" placeholder="管理员账号" class="input">
+            </div>
+
+            <div class="field">
+                <label for="password">密码</label>
+                <input type="password" name="password" id="password" required placeholder="••••••••" class="input">
+            </div>
+
+            <button type="submit" class="btn btn-primary">登录后台</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
