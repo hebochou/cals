@@ -1,4 +1,4 @@
-﻿from flask import flash, redirect, render_template, request, url_for
+﻿﻿from flask import flash, redirect, render_template, request, url_for
 
 from cals_app.core.security import _current_user, admin_required
 from cals_app.services.admin.question_admin import create_question, update_question

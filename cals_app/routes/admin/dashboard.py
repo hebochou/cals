@@ -1,4 +1,4 @@
-﻿from flask import render_template, request, session
+﻿﻿from flask import render_template, request, session
 
 from cals_app.core.security import admin_required
 from cals_app.services.shared.analytics import _admin_compute_stats

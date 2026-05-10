@@ -1,4 +1,4 @@
-﻿from datetime import datetime, timedelta
+﻿﻿from datetime import datetime, timedelta
 
 from cals_app.services.shared import attach_display_codes, load_attempts, load_questions
 from cals_app.utils.helpers import _parse_dt, html_to_text, level_to_star

@@ -1,4 +1,4 @@
-﻿import json
+﻿﻿import json
 
 from cals_app.core.db import _db_connect
 from cals_app.utils.helpers import type_prefix
